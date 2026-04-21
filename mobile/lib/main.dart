@@ -10,6 +10,9 @@ import 'app/routes/app_pages.dart';
 import 'app/routes/app_routes.dart';
 import 'app/translations/app_translations.dart';
 import 'app/modules/auth/controllers/auth_controller.dart';
+import 'app/data/local/local_database.dart';
+import 'app/services/connectivity_service.dart';
+import 'app/services/sync_service.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -26,6 +29,20 @@ void main() async {
     url: 'https://rnvyrazifxiskhuaowhw.supabase.co',
     anonKey: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InJudnlyYXppZnhpc2todWFvd2h3Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzY2ODE0NTMsImV4cCI6MjA5MjI1NzQ1M30.-mN8T2Kn6Pjn5AfeyZorhkZgalKUW5Fmt2UdQ4qHkBU',
   );
+
+  // ─── Offline-first services ──────────────────────────────────────────
+  final localDb = LocalDatabase();
+  await Get.putAsync<ConnectivityService>(
+    () async => ConnectivityService(),
+    permanent: true,
+  );
+  Get.put<SyncService>(
+    SyncService(localDb),
+    tag: 'sync_service',
+    permanent: true,
+  );
+  // Also put LocalDatabase so AppRepository can find it via Get if needed
+  Get.put<LocalDatabase>(localDb, permanent: true);
 
   runApp(const DentistTrackerApp());
 }

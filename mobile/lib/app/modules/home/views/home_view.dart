@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import '../../../core/theme/app_colors.dart';
+import '../../../services/connectivity_service.dart';
+import '../../../services/sync_service.dart';
 import '../../dashboard/views/dashboard_view.dart';
 import '../../patients/views/patient_list_view.dart';
 import '../../appointments/views/calendar_view.dart';
@@ -36,9 +38,15 @@ class HomeView extends GetView<HomeController> {
     ];
 
     return Obx(() => Scaffold(
-          body: IndexedStack(
-            index: controller.currentIndex.value,
-            children: pages,
+          body: Stack(
+            children: [
+              IndexedStack(
+                index: controller.currentIndex.value,
+                children: pages,
+              ),
+              // ── Offline / Sync Banner ──────────────────────────
+              _OfflineBanner(isDark: isDark),
+            ],
           ),
           bottomNavigationBar: Container(
             decoration: BoxDecoration(
@@ -138,5 +146,91 @@ class HomeView extends GetView<HomeController> {
         ),
       ),
     );
+  }
+}
+
+// ─── Offline / Sync Banner ────────────────────────────────────────────────────
+
+class _OfflineBanner extends StatelessWidget {
+  final bool isDark;
+  const _OfflineBanner({required this.isDark});
+
+  @override
+  Widget build(BuildContext context) {
+    final connectivity = ConnectivityService.to;
+    final sync = SyncService.to;
+
+    return Obx(() {
+      final online = connectivity.isOnline.value;
+      final pending = sync.pendingCount.value;
+      final syncing = sync.isSyncing.value;
+
+      // Nothing to show when online with no pending ops
+      if (online && pending == 0 && !syncing) return const SizedBox.shrink();
+
+      Color bgColor;
+      IconData icon;
+      String message;
+
+      if (!online) {
+        bgColor = Colors.amber.shade700;
+        icon = Icons.wifi_off_rounded;
+        message = pending > 0
+            ? 'Offline · $pending change${pending == 1 ? '' : 's'} pending'
+            : 'Offline';
+      } else if (syncing) {
+        bgColor = AppColors.primary;
+        icon = Icons.sync_rounded;
+        message = 'Syncing changes…';
+      } else {
+        // online, not syncing, but pending > 0 (edge case)
+        bgColor = Colors.orange.shade600;
+        icon = Icons.cloud_upload_rounded;
+        message = '$pending pending sync${pending == 1 ? '' : 's'}';
+      }
+
+      return Positioned(
+        top: MediaQuery.of(context).padding.top + 8,
+        left: 16,
+        right: 16,
+        child: AnimatedSlide(
+          offset: Offset.zero,
+          duration: const Duration(milliseconds: 300),
+          curve: Curves.easeOut,
+          child: Material(
+            elevation: 4,
+            borderRadius: BorderRadius.circular(10),
+            color: bgColor,
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  syncing
+                      ? const SizedBox(
+                          width: 16,
+                          height: 16,
+                          child: CircularProgressIndicator(
+                            strokeWidth: 2,
+                            color: Colors.white,
+                          ),
+                        )
+                      : Icon(icon, color: Colors.white, size: 16),
+                  const SizedBox(width: 8),
+                  Text(
+                    message,
+                    style: const TextStyle(
+                      color: Colors.white,
+                      fontSize: 13,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
+      );
+    });
   }
 }
