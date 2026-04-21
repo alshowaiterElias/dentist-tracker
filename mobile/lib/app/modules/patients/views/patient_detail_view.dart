@@ -1,6 +1,8 @@
+import 'package:cached_network_image/cached_network_image.dart';
 import 'package:dentist_tracker/app/data/repositories/app_repository.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
+import 'package:cached_network_image/cached_network_image.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../core/theme/app_text_styles.dart';
 import '../../../core/widgets/app_card.dart';
@@ -698,45 +700,154 @@ class _PatientDetailViewState extends State<PatientDetailView>
         crossAxisCount: 2,
         crossAxisSpacing: 10,
         mainAxisSpacing: 10,
-        childAspectRatio: 1.1,
+        childAspectRatio: 0.85,
       ),
       itemCount: controller.files.length,
       itemBuilder: (context, index) {
         final f = controller.files[index];
-        return AppCard(
+        return GestureDetector(
           onTap: () {
             if (f.isImage) {
               ImageViewerScreen.show(imageUrl: f.fileUrl, title: f.fileName);
             }
           },
-          padding: const EdgeInsets.all(12),
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              Icon(
-                f.isImage ? Icons.image_rounded : Icons.picture_as_pdf_rounded,
-                size: 32,
-                color: f.isImage ? AppColors.info : AppColors.error,
-              ),
-              const SizedBox(height: 8),
-              Text(
-                f.fileName,
-                style: AppTextStyles.labelSmall.copyWith(
-                  color: isDark ? AppColors.darkText : AppColors.lightText,
+          child: ClipRRect(
+            borderRadius: BorderRadius.circular(14),
+            child: Stack(
+              fit: StackFit.expand,
+              children: [
+                // ── Background: image thumbnail or PDF placeholder ──
+                if (f.isImage)
+                  CachedNetworkImage(
+                    imageUrl: f.fileUrl,
+                    fit: BoxFit.cover,
+                    placeholder: (context, url) => Container(
+                      color: isDark
+                          ? AppColors.darkCardElevated
+                          : AppColors.lightCardElevated,
+                      child: const Center(
+                        child: CircularProgressIndicator(
+                          color: AppColors.primary,
+                          strokeWidth: 2,
+                        ),
+                      ),
+                    ),
+                    errorWidget: (context, url, error) => Container(
+                      color: isDark
+                          ? AppColors.darkCardElevated
+                          : AppColors.lightCardElevated,
+                      child: const Center(
+                        child: Icon(
+                          Icons.broken_image_rounded,
+                          color: AppColors.lightTextTertiary,
+                          size: 36,
+                        ),
+                      ),
+                    ),
+                  )
+                else
+                  Container(
+                    color: AppColors.error.withValues(alpha: 0.08),
+                    child: Center(
+                      child: Column(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          Icon(
+                            Icons.picture_as_pdf_rounded,
+                            size: 48,
+                            color: AppColors.error.withValues(alpha: 0.7),
+                          ),
+                          const SizedBox(height: 8),
+                          Padding(
+                            padding: const EdgeInsets.symmetric(horizontal: 10),
+                            child: Text(
+                              f.fileName,
+                              style: AppTextStyles.labelSmall.copyWith(
+                                color: isDark
+                                    ? AppColors.darkTextSecondary
+                                    : AppColors.lightTextSecondary,
+                              ),
+                              maxLines: 2,
+                              overflow: TextOverflow.ellipsis,
+                              textAlign: TextAlign.center,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+
+                // ── Gradient overlay at bottom for images ──
+                if (f.isImage)
+                  Positioned(
+                    left: 0,
+                    right: 0,
+                    bottom: 0,
+                    child: Container(
+                      padding: const EdgeInsets.fromLTRB(10, 24, 10, 10),
+                      decoration: BoxDecoration(
+                        gradient: LinearGradient(
+                          begin: Alignment.topCenter,
+                          end: Alignment.bottomCenter,
+                          colors: [
+                            Colors.transparent,
+                            Colors.black.withValues(alpha: 0.7),
+                          ],
+                        ),
+                      ),
+                      child: Text(
+                        f.fileName,
+                        style: AppTextStyles.labelSmall.copyWith(
+                          color: Colors.white,
+                          shadows: [
+                            const Shadow(color: Colors.black54, blurRadius: 4),
+                          ],
+                        ),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ),
+                  ),
+
+                // ── Category badge (top-right) ──
+                Positioned(
+                  top: 8,
+                  right: 8,
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 8,
+                      vertical: 3,
+                    ),
+                    decoration: BoxDecoration(
+                      color: Colors.black.withValues(alpha: 0.55),
+                      borderRadius: BorderRadius.circular(6),
+                    ),
+                    child: Text(
+                      f.category.tr,
+                      style: AppTextStyles.caption.copyWith(
+                        color: Colors.white,
+                        fontSize: 10,
+                      ),
+                    ),
+                  ),
                 ),
-                maxLines: 2,
-                overflow: TextOverflow.ellipsis,
-                textAlign: TextAlign.center,
-              ),
-              Text(
-                f.fileSizeFormatted,
-                style: AppTextStyles.caption.copyWith(
-                  color: isDark
-                      ? AppColors.darkTextTertiary
-                      : AppColors.lightTextTertiary,
-                ),
-              ),
-            ],
+
+                // ── Tap ripple for images ──
+                if (f.isImage)
+                  Positioned.fill(
+                    child: Material(
+                      color: Colors.transparent,
+                      child: InkWell(
+                        borderRadius: BorderRadius.circular(14),
+                        onTap: () => ImageViewerScreen.show(
+                          imageUrl: f.fileUrl,
+                          title: f.fileName,
+                        ),
+                      ),
+                    ),
+                  ),
+              ],
+            ),
           ),
         );
       },
