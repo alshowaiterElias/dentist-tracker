@@ -35,12 +35,14 @@ class CalendarViewState extends State<CalendarView> {
 
   /// Called by HomeView when this tab becomes active
   void refreshData() {
+    if (!mounted) return;
     _loadMonthAppointments();
   }
 
   DateTime _normalizeDate(DateTime d) => DateTime(d.year, d.month, d.day);
 
   Future<void> _loadMonthAppointments() async {
+    if (!mounted) return;
     setState(() => _isLoading = true);
     try {
       final appointments = await _repo.getAppointments(
@@ -54,13 +56,14 @@ class CalendarViewState extends State<CalendarView> {
         events.putIfAbsent(key, () => []).add(apt);
       }
 
+      if (!mounted) return;
       setState(() {
         _events = events;
         _selectedDayAppointments = events[_normalizeDate(_selectedDay)] ?? [];
       });
     } catch (_) {
     } finally {
-      setState(() => _isLoading = false);
+      if (mounted) setState(() => _isLoading = false);
     }
   }
 

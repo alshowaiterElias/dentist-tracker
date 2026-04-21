@@ -30,16 +30,19 @@ class ReportsViewState extends State<ReportsView> {
 
   /// Called by HomeView when this tab becomes active
   void refreshData() {
+    if (!mounted) return;
     _loadReport();
   }
 
   Future<void> _loadReport() async {
+    if (!mounted) return;
     setState(() => _isLoading = true);
     try {
       final results = await Future.wait([
         _repo.getMonthlyReport(_selectedYear, _selectedMonth),
         _repo.getProfile(),
       ]);
+      if (!mounted) return;
       setState(() {
         _report = results[0] as Map<String, dynamic>;
         final profile = results[1];
@@ -49,7 +52,7 @@ class ReportsViewState extends State<ReportsView> {
       });
     } catch (_) {
     } finally {
-      setState(() => _isLoading = false);
+      if (mounted) setState(() => _isLoading = false);
     }
   }
 
