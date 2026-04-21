@@ -368,17 +368,23 @@ class LocalDatabase extends _$LocalDatabase {
   Future<void> deleteQueueOp(int id) =>
       (delete(syncQueueTable)..where((t) => t.id.equals(id))).go();
 
-  Future<void> markQueueOpFailed(int id, String error) =>
-      (update(syncQueueTable)..where((t) => t.id.equals(id))).write(
-        SyncQueueTableCompanion(
-          retryCount: Value(
-            // increment handled by reading current + 1 via custom query
-            // simplified: just set large number to skip
-            5,
-          ),
-          lastError: Value(error),
-        ),
-      );
+  Future<void> incrementRetryCount(int id, String error) async {
+    final row = await (select(syncQueueTable)
+          ..where((t) => t.id.equals(id)))
+        .getSingleOrNull();
+    if (row == null) return;
+    await (update(syncQueueTable)..where((t) => t.id.equals(id))).write(
+      SyncQueueTableCompanion(
+        retryCount: Value(row.retryCount + 1),
+        lastError: Value(error),
+      ),
+    );
+  }
+
+  /// Used after a successful offline file upload to patch the local URL.
+  Future<void> updateFileUrl(String fileId, String fileUrl) =>
+      (update(filesTable)..where((t) => t.id.equals(fileId)))
+          .write(FilesTableCompanion(fileUrl: Value(fileUrl)));
 
   // ── Local RPC: Financial Summary ─────────────────────────────
   Future<Map<String, dynamic>> computeFinancialSummary(
@@ -447,11 +453,13 @@ class LocalDatabase extends _$LocalDatabase {
   // ── Local RPC: Patient Financials ─────────────────────────────
   Future<Map<String, dynamic>> computePatientFinancials(
       String patientId) async {
-    final treatments = await getTreatments('', ).then(
-        (list) => list.where((t) => t.patientId == patientId).toList());
+    // Get all treatments then filter by patientId
+    final allTreatments = await (select(treatmentsTable)
+          ..where((t) => t.patientId.equals(patientId)))
+        .get();
     double totalCost = 0;
     double totalPaid = 0;
-    for (final t in treatments) {
+    for (final t in allTreatments) {
       totalCost += t.totalCost;
       totalPaid += t.amountPaid;
     }

@@ -4,12 +4,16 @@ import 'package:get/get.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:path/path.dart' as p;
+import 'package:path_provider/path_provider.dart';
+import 'package:uuid/uuid.dart';
 import '../../core/theme/app_colors.dart';
 import '../../core/theme/app_text_styles.dart';
 import '../../data/providers/supabase_provider.dart';
 import '../../data/repositories/app_repository.dart';
+import '../../services/connectivity_service.dart';
 
 /// Bottom sheet for uploading files (camera, gallery, or document picker).
+/// Handles both online and offline scenarios automatically.
 class FileUploadSheet extends StatefulWidget {
   final String patientId;
   final String? treatmentId;
@@ -47,7 +51,6 @@ class _FileUploadSheetState extends State<FileUploadSheet> {
   final _picker = ImagePicker();
   String _selectedCategory = 'other';
   bool _isUploading = false;
-  double _uploadProgress = 0;
 
   final _categories = [
     {'key': 'xray', 'icon': Icons.image_search_rounded, 'label': 'xray'},
@@ -157,10 +160,9 @@ class _FileUploadSheetState extends State<FileUploadSheet> {
           ),
           const SizedBox(height: 24),
 
-          // Upload progress
+          // Upload progress indicator
           if (_isUploading) ...[
             LinearProgressIndicator(
-              value: _uploadProgress > 0 ? _uploadProgress : null,
               color: AppColors.primary,
               backgroundColor: AppColors.primary.withValues(alpha: 0.1),
             ),
@@ -238,7 +240,8 @@ class _FileUploadSheetState extends State<FileUploadSheet> {
           children: [
             Icon(icon, color: color, size: 28),
             const SizedBox(height: 8),
-            Text(label, style: AppTextStyles.labelSmall.copyWith(color: color)),
+            Text(label,
+                style: AppTextStyles.labelSmall.copyWith(color: color)),
           ],
         ),
       ),
@@ -253,15 +256,9 @@ class _FileUploadSheetState extends State<FileUploadSheet> {
         maxHeight: 1920,
         imageQuality: 80,
       );
-      if (image != null) {
-        await _uploadFile(File(image.path), image.name);
-      }
-    } catch (e) {
-      Get.snackbar(
-        'error'.tr,
-        'something_went_wrong'.tr,
-        snackPosition: SnackPosition.BOTTOM,
-      );
+      if (image != null) await _uploadFile(File(image.path), image.name);
+    } catch (_) {
+      _showError();
     }
   }
 
@@ -272,48 +269,34 @@ class _FileUploadSheetState extends State<FileUploadSheet> {
         allowedExtensions: ['pdf', 'jpg', 'jpeg', 'png', 'webp'],
       );
       if (result != null && result.files.single.path != null) {
-        final file = File(result.files.single.path!);
-        await _uploadFile(file, result.files.single.name);
+        await _uploadFile(
+            File(result.files.single.path!), result.files.single.name);
       }
-    } catch (e) {
-      Get.snackbar(
-        'error'.tr,
-        'something_went_wrong'.tr,
-        snackPosition: SnackPosition.BOTTOM,
-      );
+    } catch (_) {
+      _showError();
     }
   }
 
+  void _showError() => Get.snackbar('error'.tr, 'something_went_wrong'.tr,
+      snackPosition: SnackPosition.BOTTOM);
+
   Future<void> _uploadFile(File file, String fileName) async {
-    // Check file size (10MB max)
     final size = await file.length();
     if (size > 10 * 1024 * 1024) {
-      Get.snackbar(
-        'error'.tr,
-        'file_too_large'.tr,
-        snackPosition: SnackPosition.BOTTOM,
-      );
+      Get.snackbar('error'.tr, 'file_too_large'.tr,
+          snackPosition: SnackPosition.BOTTOM);
       return;
     }
 
-    setState(() {
-      _isUploading = true;
-      _uploadProgress = 0;
-    });
+    setState(() => _isUploading = true);
 
     try {
       final userId = SupabaseProvider.userId!;
       final ext = p.extension(fileName).toLowerCase();
       final timestamp = DateTime.now().millisecondsSinceEpoch;
-      final storagePath = '$userId/${widget.patientId}/${timestamp}_$fileName';
+      final storagePath =
+          '$userId/${widget.patientId}/${timestamp}_$fileName';
 
-      // Upload to Supabase Storage
-      await SupabaseProvider.storage.upload(storagePath, file);
-
-      // Get public URL
-      final fileUrl = SupabaseProvider.storage.getPublicUrl(storagePath);
-
-      // Determine file type
       String fileType = 'document';
       if (['.jpg', '.jpeg', '.png', '.webp', '.heic'].contains(ext)) {
         fileType = 'image';
@@ -321,36 +304,67 @@ class _FileUploadSheetState extends State<FileUploadSheet> {
         fileType = 'pdf';
       }
 
-      // Create DB record
-      await _repo.createFileRecord({
-        'patient_id': widget.patientId,
-        'treatment_id': widget.treatmentId,
-        'dentist_id': userId,
-        'file_name': fileName,
-        'file_type': fileType,
-        'file_url': fileUrl,
-        'storage_path': storagePath,
-        'file_size': size,
-        'category': _selectedCategory,
-      });
+      if (ConnectivityService.to.isOnline.value) {
+        // ── Online: upload binary to Storage, then save DB record ──────
+        await SupabaseProvider.storage.upload(storagePath, file);
+        final fileUrl = SupabaseProvider.storage.getPublicUrl(storagePath);
 
-      Get.back();
-      Get.snackbar(
-        'success'.tr,
-        'file_uploaded'.tr,
-        snackPosition: SnackPosition.BOTTOM,
-      );
-      widget.onUploaded();
-    } catch (e) {
-      Get.snackbar(
-        'error'.tr,
-        'something_went_wrong'.tr,
-        snackPosition: SnackPosition.BOTTOM,
-      );
-    } finally {
-      if (mounted) {
-        setState(() => _isUploading = false);
+        // createFileRecord online path → writes Supabase first, then caches
+        await _repo.createFileRecord({
+          'patient_id': widget.patientId,
+          'treatment_id': widget.treatmentId,
+          'dentist_id': userId,
+          'file_name': fileName,
+          'file_type': fileType,
+          'file_url': fileUrl,
+          'storage_path': storagePath,
+          'file_size': size,
+          'category': _selectedCategory,
+        });
+
+        Get.back();
+        Get.snackbar('success'.tr, 'file_uploaded'.tr,
+            snackPosition: SnackPosition.BOTTOM);
+      } else {
+        // ── Offline: copy file locally, queue upload for when back online
+        final appDir = await getApplicationDocumentsDirectory();
+        final pendingDir = Directory('${appDir.path}/pending_uploads');
+        await pendingDir.create(recursive: true);
+
+        // Copy with a unique name so the original path stays valid
+        final localCopy =
+            await file.copy('${pendingDir.path}/${const Uuid().v4()}$ext');
+
+        // createFileRecord offline path: saves locally with empty fileUrl
+        // and enqueues an upload_file op that includes local_path so
+        // SyncService can upload the binary and update the URL.
+        await _repo.createFileRecord({
+          'patient_id': widget.patientId,
+          'treatment_id': widget.treatmentId,
+          'dentist_id': userId,
+          'file_name': fileName,
+          'file_type': fileType,
+          'file_url': '', // will be updated after sync
+          'storage_path': storagePath,
+          'file_size': size,
+          'category': _selectedCategory,
+          'local_path': localCopy.path, // SyncService needs this
+        });
+
+        Get.back();
+        Get.snackbar(
+          'success'.tr,
+          'File saved — will upload when back online',
+          snackPosition: SnackPosition.BOTTOM,
+          duration: const Duration(seconds: 4),
+        );
       }
+
+      widget.onUploaded();
+    } catch (_) {
+      _showError();
+    } finally {
+      if (mounted) setState(() => _isUploading = false);
     }
   }
 }

@@ -97,9 +97,8 @@ extension _TreatmentLocalConvert on TreatmentsTableData {
         patientId: patientId,
         dentistId: dentistId,
         procedureType: procedureType,
-        toothNumbers: (jsonDecode(toothNumbers) as List)
-            .map((e) => e as int)
-            .toList(),
+        toothNumbers:
+            (jsonDecode(toothNumbers) as List).map((e) => e as int).toList(),
         description: description,
         notes: treatmentNotes,
         totalCost: totalCost,
@@ -236,28 +235,21 @@ extension _FileLocalConvert on FilesTableData {
 
 // ─── Repository ───────────────────────────────────────────────────────────────
 
-/// Local-first repository. Reads from local SQLite cache, writes locally
-/// and syncs to Supabase when online. Falls back gracefully when offline.
+/// Local-first repository. Reads from local SQLite cache instantly and syncs
+/// with Supabase in the background when online. Writes queue when offline.
 class AppRepository {
   LocalDatabase get _db => Get.find<LocalDatabase>();
-
   bool get _online => ConnectivityService.to.isOnline.value;
-
   SyncService get _sync => SyncService.to;
-
   static const _uuid = Uuid();
 
-  // ─── Profiles ────────────────────────────────────────────────────────
+  // ─── Profiles ─────────────────────────────────────────────────────────
 
   Future<ProfileModel?> getProfile() async {
     final userId = SupabaseProvider.userId;
     if (userId == null) return null;
 
-    // 1. Return local first
     final local = await _db.getProfile(userId);
-    final localModel = local?.toModel();
-
-    // 2. Refresh from remote in background if online
     if (_online) {
       _bgSync(() async {
         final data = await SupabaseProvider.from('profiles')
@@ -265,20 +257,17 @@ class AppRepository {
             .eq('id', userId)
             .maybeSingle();
         if (data != null) {
-          final model = ProfileModel.fromJson(data);
-          await _db.upsertProfile(model.toLocal());
+          await _db.upsertProfile(ProfileModel.fromJson(data).toLocal());
         }
       });
     }
-
-    return localModel;
+    return local?.toModel();
   }
 
   Future<void> updateProfile(Map<String, dynamic> updates) async {
     final userId = SupabaseProvider.userId;
     if (userId == null) return;
 
-    // Update local cache immediately
     final local = await _db.getProfile(userId);
     if (local != null) {
       await _db.upsertProfile(ProfilesTableData(
@@ -287,9 +276,9 @@ class AppRepository {
         fullName: updates['full_name'] as String? ?? local.fullName,
         email: local.email,
         phone: local.phone,
-        revenuePercentage: (updates['revenue_percentage'] as num?)
-                ?.toDouble() ??
-            local.revenuePercentage,
+        revenuePercentage:
+            (updates['revenue_percentage'] as num?)?.toDouble() ??
+                local.revenuePercentage,
         preferredLanguage:
             updates['preferred_language'] as String? ?? local.preferredLanguage,
         cachedAt: DateTime.now().toIso8601String(),
@@ -314,12 +303,7 @@ class AppRepository {
     final userId = SupabaseProvider.userId;
     if (userId == null) return [];
 
-    // 1. Return local cache immediately
-    final local =
-        await _db.getPatients(userId, search: search);
-    final localModels = local.map((e) => e.toModel()).toList();
-
-    // 2. Background sync from Supabase
+    final local = await _db.getPatients(userId, search: search);
     if (_online) {
       _bgSync(() async {
         var query = SupabaseProvider.from('patients')
@@ -328,20 +312,15 @@ class AppRepository {
             .eq('is_deleted', false);
         final data = await query.order('created_at', ascending: false);
         for (final row in data as List) {
-          final model = PatientModel.fromJson(row);
-          await _db.upsertPatient(model.toLocal());
+          await _db.upsertPatient(PatientModel.fromJson(row).toLocal());
         }
       });
     }
-
-    return localModels;
+    return local.map((e) => e.toModel()).toList();
   }
 
   Future<PatientModel?> getPatient(String id) async {
-    // Return local first
     final local = await _db.getPatientById(id);
-    final localModel = local?.toModel();
-
     if (_online) {
       _bgSync(() async {
         final data = await SupabaseProvider.from('patients')
@@ -353,52 +332,38 @@ class AppRepository {
         }
       });
     }
-
-    return localModel;
+    return local?.toModel();
   }
 
   Future<PatientModel> createPatient(Map<String, dynamic> patient) async {
-    final id = patient['id'] as String? ?? _uuid.v4();
-    final now = DateTime.now().toIso8601String();
-    final fullPayload = {
-      'id': id,
-      'created_at': now,
-      'updated_at': now,
-      'is_deleted': false,
-      ...patient,
-    };
-
-    // Write to local DB immediately
-    final model = PatientModel.fromJson(fullPayload);
-    await _db.upsertPatient(model.toLocal());
-
+    // Online: write to Supabase first, cache canonical response (avoids UUID mismatch)
     if (_online) {
-      // Write to Supabase and get canonical response
       try {
         final data = await SupabaseProvider.from('patients')
             .insert(patient)
             .select()
             .single();
-        final remoteModel = PatientModel.fromJson(data);
-        await _db.upsertPatient(remoteModel.toLocal());
-        return remoteModel;
-      } catch (e) {
-        // Remote failed — return local optimistic model
+        final model = PatientModel.fromJson(data);
+        await _db.upsertPatient(model.toLocal());
         return model;
-      }
-    } else {
-      await _sync.enqueue(
-        recordUuid: id,
-        tableName: 'patients',
-        action: 'insert',
-        payload: fullPayload,
-      );
-      return model;
+      } catch (_) {}
     }
+    // Offline (or online error): local write + queue
+    final id = patient['id'] as String? ?? _uuid.v4();
+    final now = DateTime.now().toIso8601String();
+    final payload = {
+      'id': id, 'created_at': now, 'updated_at': now, 'is_deleted': false,
+      ...patient,
+    };
+    final model = PatientModel.fromJson(payload);
+    await _db.upsertPatient(model.toLocal());
+    await _sync.enqueue(
+      recordUuid: id, tableName: 'patients', action: 'insert', payload: payload,
+    );
+    return model;
   }
 
   Future<void> updatePatient(String id, Map<String, dynamic> updates) async {
-    // Update local
     final local = await _db.getPatientById(id);
     if (local != null) {
       await _db.upsertPatient(PatientsTableData(
@@ -407,8 +372,7 @@ class AppRepository {
         fullName: updates['full_name'] as String? ?? local.fullName,
         phone: updates['phone'] as String? ?? local.phone,
         age: updates['age'] as int? ?? local.age,
-        medicalStatus:
-            updates['medical_status'] as String? ?? local.medicalStatus,
+        medicalStatus: updates['medical_status'] as String? ?? local.medicalStatus,
         condition: updates['condition'] as String? ?? local.condition,
         notes: updates['notes'] as String? ?? local.notes,
         isDeleted: local.isDeleted,
@@ -417,14 +381,11 @@ class AppRepository {
         cachedAt: DateTime.now().toIso8601String(),
       ));
     }
-
     if (_online) {
       await SupabaseProvider.from('patients').update(updates).eq('id', id);
     } else {
       await _sync.enqueue(
-        recordUuid: id,
-        tableName: 'patients',
-        action: 'update',
+        recordUuid: id, tableName: 'patients', action: 'update',
         payload: {'id': id, ...updates},
       );
     }
@@ -432,15 +393,12 @@ class AppRepository {
 
   Future<void> softDeletePatient(String id) async {
     await _db.markPatientDeleted(id);
-
     if (_online) {
       await SupabaseProvider.from('patients')
           .update({'is_deleted': true}).eq('id', id);
     } else {
       await _sync.enqueue(
-        recordUuid: id,
-        tableName: 'patients',
-        action: 'soft_delete_patient',
+        recordUuid: id, tableName: 'patients', action: 'soft_delete_patient',
         payload: {'id': id},
       );
     }
@@ -456,7 +414,6 @@ class AppRepository {
         return result as Map<String, dynamic>;
       } catch (_) {}
     }
-    // Fallback: compute locally
     return _db.computePatientFinancials(patientId);
   }
 
@@ -467,8 +424,6 @@ class AppRepository {
     if (userId == null) return [];
 
     final local = await _db.getTreatments(userId, patientId: patientId);
-    final localModels = local.map((e) => e.toModel()).toList();
-
     if (_online) {
       _bgSync(() async {
         var query = SupabaseProvider.from('treatments')
@@ -481,13 +436,11 @@ class AppRepository {
         }
       });
     }
-
-    return localModels;
+    return local.map((e) => e.toModel()).toList();
   }
 
   Future<TreatmentModel?> getTreatment(String id) async {
     final local = await _db.getTreatmentById(id);
-
     if (_online) {
       _bgSync(() async {
         final data = await SupabaseProvider.from('treatments')
@@ -499,53 +452,39 @@ class AppRepository {
         }
       });
     }
-
     return local?.toModel();
   }
 
-  Future<TreatmentModel> createTreatment(
-      Map<String, dynamic> treatment) async {
-    final id = treatment['id'] as String? ?? _uuid.v4();
-    final now = DateTime.now().toIso8601String();
-    final fullPayload = {'id': id, 'created_at': now, ...treatment};
-
-    final model = TreatmentModel.fromJson(fullPayload);
-    await _db.upsertTreatment(model.toLocal());
-
+  Future<TreatmentModel> createTreatment(Map<String, dynamic> treatment) async {
     if (_online) {
       try {
         final data = await SupabaseProvider.from('treatments')
             .insert(treatment)
             .select()
             .single();
-        final remote = TreatmentModel.fromJson(data);
-        await _db.upsertTreatment(remote.toLocal());
-        return remote;
-      } catch (_) {
+        final model = TreatmentModel.fromJson(data);
+        await _db.upsertTreatment(model.toLocal());
         return model;
-      }
-    } else {
-      await _sync.enqueue(
-        recordUuid: id,
-        tableName: 'treatments',
-        action: 'insert',
-        payload: fullPayload,
-      );
-      return model;
+      } catch (_) {}
     }
+    final id = treatment['id'] as String? ?? _uuid.v4();
+    final now = DateTime.now().toIso8601String();
+    final payload = {'id': id, 'created_at': now, ...treatment};
+    final model = TreatmentModel.fromJson(payload);
+    await _db.upsertTreatment(model.toLocal());
+    await _sync.enqueue(
+      recordUuid: id, tableName: 'treatments', action: 'insert', payload: payload,
+    );
+    return model;
   }
 
-  Future<void> updateTreatment(
-      String id, Map<String, dynamic> updates) async {
+  Future<void> updateTreatment(String id, Map<String, dynamic> updates) async {
     await _db.updateTreatmentLocal(id, updates);
-
     if (_online) {
       await SupabaseProvider.from('treatments').update(updates).eq('id', id);
     } else {
       await _sync.enqueue(
-        recordUuid: id,
-        tableName: 'treatments',
-        action: 'update',
+        recordUuid: id, tableName: 'treatments', action: 'update',
         payload: {'id': id, ...updates},
       );
     }
@@ -560,57 +499,41 @@ class AppRepository {
     final uid = dentistId ?? SupabaseProvider.userId;
     if (uid == null) return [];
 
-    final local =
-        await _db.getPayments(treatmentId: treatmentId, dentistId: uid);
-    final localModels = local.map((e) => e.toModel()).toList();
-
+    final local = await _db.getPayments(treatmentId: treatmentId, dentistId: uid);
     if (_online) {
       _bgSync(() async {
-        var query = SupabaseProvider.from('payments')
-            .select()
-            .eq('dentist_id', uid);
-        if (treatmentId != null) {
-          query = query.eq('treatment_id', treatmentId);
-        }
+        var query = SupabaseProvider.from('payments').select().eq('dentist_id', uid);
+        if (treatmentId != null) query = query.eq('treatment_id', treatmentId);
         final data = await query.order('payment_date', ascending: false);
         for (final row in data as List) {
           await _db.upsertPayment(PaymentModel.fromJson(row).toLocal());
         }
       });
     }
-
-    return localModels;
+    return local.map((e) => e.toModel()).toList();
   }
 
   Future<PaymentModel> createPayment(Map<String, dynamic> payment) async {
-    final id = payment['id'] as String? ?? _uuid.v4();
-    final now = DateTime.now().toIso8601String();
-    final fullPayload = {'id': id, 'payment_date': now, ...payment};
-
-    final model = PaymentModel.fromJson(fullPayload);
-    await _db.upsertPayment(model.toLocal());
-
     if (_online) {
       try {
         final data = await SupabaseProvider.from('payments')
             .insert(payment)
             .select()
             .single();
-        final remote = PaymentModel.fromJson(data);
-        await _db.upsertPayment(remote.toLocal());
-        return remote;
-      } catch (_) {
+        final model = PaymentModel.fromJson(data);
+        await _db.upsertPayment(model.toLocal());
         return model;
-      }
-    } else {
-      await _sync.enqueue(
-        recordUuid: id,
-        tableName: 'payments',
-        action: 'insert',
-        payload: fullPayload,
-      );
-      return model;
+      } catch (_) {}
     }
+    final id = payment['id'] as String? ?? _uuid.v4();
+    final now = DateTime.now().toIso8601String();
+    final payload = {'id': id, 'payment_date': now, ...payment};
+    final model = PaymentModel.fromJson(payload);
+    await _db.upsertPayment(model.toLocal());
+    await _sync.enqueue(
+      recordUuid: id, tableName: 'payments', action: 'insert', payload: payload,
+    );
+    return model;
   }
 
   // ─── Appointments ─────────────────────────────────────────────────────
@@ -628,14 +551,8 @@ class AppRepository {
         ? '${date.year}-${date.month.toString().padLeft(2, '0')}-${date.day.toString().padLeft(2, '0')}'
         : null;
 
-    final local = await _db.getAppointments(
-      userId,
-      date: dateStr,
-      patientId: patientId,
-      year: year,
-      month: month,
-    );
-    final localModels = local.map((e) => e.toModel()).toList();
+    final local = await _db.getAppointments(userId,
+        date: dateStr, patientId: patientId, year: year, month: month);
 
     if (_online) {
       _bgSync(() async {
@@ -649,64 +566,48 @@ class AppRepository {
           final endMonth = month == 12 ? 1 : month + 1;
           final endYear = month == 12 ? year + 1 : year;
           final end = '$endYear-${endMonth.toString().padLeft(2, '0')}-01';
-          query = query
-              .gte('appointment_date', start)
-              .lt('appointment_date', end);
+          query = query.gte('appointment_date', start).lt('appointment_date', end);
         }
         final data = await query.order('appointment_date', ascending: true);
         for (final row in data as List) {
-          await _db
-              .upsertAppointment(AppointmentModel.fromJson(row).toLocal());
+          await _db.upsertAppointment(AppointmentModel.fromJson(row).toLocal());
         }
       });
     }
-
-    return localModels;
+    return local.map((e) => e.toModel()).toList();
   }
 
-  Future<AppointmentModel> createAppointment(
-      Map<String, dynamic> apt) async {
-    final id = apt['id'] as String? ?? _uuid.v4();
-    final now = DateTime.now().toIso8601String();
-    final fullPayload = {'id': id, 'created_at': now, 'status': 'scheduled', ...apt};
-
-    final model = AppointmentModel.fromJson(fullPayload);
-    await _db.upsertAppointment(model.toLocal());
-
+  Future<AppointmentModel> createAppointment(Map<String, dynamic> apt) async {
     if (_online) {
       try {
         final data = await SupabaseProvider.from('appointments')
             .insert(apt)
             .select('*, patients(full_name, phone)')
             .single();
-        final remote = AppointmentModel.fromJson(data);
-        await _db.upsertAppointment(remote.toLocal());
-        return remote;
-      } catch (_) {
+        final model = AppointmentModel.fromJson(data);
+        await _db.upsertAppointment(model.toLocal());
         return model;
-      }
-    } else {
-      await _sync.enqueue(
-        recordUuid: id,
-        tableName: 'appointments',
-        action: 'insert',
-        payload: fullPayload,
-      );
-      return model;
+      } catch (_) {}
     }
+    final id = apt['id'] as String? ?? _uuid.v4();
+    final now = DateTime.now().toIso8601String();
+    final payload = {'id': id, 'created_at': now, 'status': 'scheduled', ...apt};
+    final model = AppointmentModel.fromJson(payload);
+    await _db.upsertAppointment(model.toLocal());
+    await _sync.enqueue(
+      recordUuid: id, tableName: 'appointments', action: 'insert', payload: payload,
+    );
+    return model;
   }
 
   Future<void> updateAppointmentStatus(String id, String status) async {
     await _db.updateAppointmentStatusLocal(id, status);
-
     if (_online) {
       await SupabaseProvider.from('appointments')
           .update({'status': status}).eq('id', id);
     } else {
       await _sync.enqueue(
-        recordUuid: id,
-        tableName: 'appointments',
-        action: 'update',
+        recordUuid: id, tableName: 'appointments', action: 'update',
         payload: {'id': id, 'status': status},
       );
     }
@@ -714,14 +615,11 @@ class AppRepository {
 
   Future<void> deleteAppointment(String id) async {
     await _db.deleteAppointmentLocal(id);
-
     if (_online) {
       await SupabaseProvider.from('appointments').delete().eq('id', id);
     } else {
       await _sync.enqueue(
-        recordUuid: id,
-        tableName: 'appointments',
-        action: 'delete_appointment',
+        recordUuid: id, tableName: 'appointments', action: 'delete_appointment',
         payload: {'id': id},
       );
     }
@@ -738,69 +636,50 @@ class AppRepository {
 
     final local = await _db.getMedications(userId,
         patientId: patientId, treatmentId: treatmentId);
-    final localModels = local.map((e) => e.toModel()).toList();
-
     if (_online) {
       _bgSync(() async {
-        var query = SupabaseProvider.from('medications')
-            .select()
-            .eq('dentist_id', userId);
+        var query = SupabaseProvider.from('medications').select().eq('dentist_id', userId);
         if (patientId != null) query = query.eq('patient_id', patientId);
-        if (treatmentId != null) {
-          query = query.eq('treatment_id', treatmentId);
-        }
+        if (treatmentId != null) query = query.eq('treatment_id', treatmentId);
         final data = await query.order('prescribed_date', ascending: false);
         for (final row in data as List) {
           await _db.upsertMedication(MedicationModel.fromJson(row).toLocal());
         }
       });
     }
-
-    return localModels;
+    return local.map((e) => e.toModel()).toList();
   }
 
-  Future<MedicationModel> createMedication(
-      Map<String, dynamic> med) async {
-    final id = med['id'] as String? ?? _uuid.v4();
-    final now = DateTime.now().toIso8601String();
-    final fullPayload = {'id': id, 'prescribed_date': now, ...med};
-
-    final model = MedicationModel.fromJson(fullPayload);
-    await _db.upsertMedication(model.toLocal());
-
+  Future<MedicationModel> createMedication(Map<String, dynamic> med) async {
     if (_online) {
       try {
         final data = await SupabaseProvider.from('medications')
             .insert(med)
             .select()
             .single();
-        final remote = MedicationModel.fromJson(data);
-        await _db.upsertMedication(remote.toLocal());
-        return remote;
-      } catch (_) {
+        final model = MedicationModel.fromJson(data);
+        await _db.upsertMedication(model.toLocal());
         return model;
-      }
-    } else {
-      await _sync.enqueue(
-        recordUuid: id,
-        tableName: 'medications',
-        action: 'insert',
-        payload: fullPayload,
-      );
-      return model;
+      } catch (_) {}
     }
+    final id = med['id'] as String? ?? _uuid.v4();
+    final now = DateTime.now().toIso8601String();
+    final payload = {'id': id, 'prescribed_date': now, ...med};
+    final model = MedicationModel.fromJson(payload);
+    await _db.upsertMedication(model.toLocal());
+    await _sync.enqueue(
+      recordUuid: id, tableName: 'medications', action: 'insert', payload: payload,
+    );
+    return model;
   }
 
   Future<void> deleteMedication(String id) async {
     await _db.deleteMedicationLocal(id);
-
     if (_online) {
       await SupabaseProvider.from('medications').delete().eq('id', id);
     } else {
       await _sync.enqueue(
-        recordUuid: id,
-        tableName: 'medications',
-        action: 'delete_medication',
+        recordUuid: id, tableName: 'medications', action: 'delete_medication',
         payload: {'id': id},
       );
     }
@@ -817,69 +696,59 @@ class AppRepository {
 
     final local = await _db.getFiles(userId,
         patientId: patientId, treatmentId: treatmentId);
-    final localModels = local.map((e) => e.toModel()).toList();
-
     if (_online) {
       _bgSync(() async {
-        var query = SupabaseProvider.from('files')
-            .select()
-            .eq('dentist_id', userId);
+        var query = SupabaseProvider.from('files').select().eq('dentist_id', userId);
         if (patientId != null) query = query.eq('patient_id', patientId);
-        if (treatmentId != null) {
-          query = query.eq('treatment_id', treatmentId);
-        }
+        if (treatmentId != null) query = query.eq('treatment_id', treatmentId);
         final data = await query.order('uploaded_at', ascending: false);
         for (final row in data as List) {
           await _db.upsertFile(FileModel.fromJson(row).toLocal());
         }
       });
     }
-
-    return localModels;
+    return local.map((e) => e.toModel()).toList();
   }
 
+  /// Creates a file record. When online, writes to Supabase first (no pre-write
+  /// locally) to avoid UUID mismatch duplication. When offline, stores locally
+  /// and queues an upload_file sync operation.
   Future<FileModel> createFileRecord(Map<String, dynamic> file) async {
-    final id = file['id'] as String? ?? _uuid.v4();
-    final now = DateTime.now().toIso8601String();
-    final fullPayload = {'id': id, 'uploaded_at': now, ...file};
-
-    final model = FileModel.fromJson(fullPayload);
-    await _db.upsertFile(model.toLocal());
-
     if (_online) {
       try {
         final data = await SupabaseProvider.from('files')
             .insert(file)
             .select()
             .single();
-        final remote = FileModel.fromJson(data);
-        await _db.upsertFile(remote.toLocal());
-        return remote;
-      } catch (_) {
+        final model = FileModel.fromJson(data);
+        await _db.upsertFile(model.toLocal());
         return model;
-      }
-    } else {
-      await _sync.enqueue(
-        recordUuid: id,
-        tableName: 'files',
-        action: 'insert',
-        payload: fullPayload,
-      );
-      return model;
+      } catch (_) {}
     }
+    // Offline: store locally with generated UUID, queue upload+insert
+    final id = file['id'] as String? ?? _uuid.v4();
+    final now = DateTime.now().toIso8601String();
+    final payload = {'id': id, 'uploaded_at': now, ...file};
+    final model = FileModel.fromJson(payload);
+    await _db.upsertFile(model.toLocal());
+    // Use upload_file action so SyncService uploads binary + inserts record
+    await _sync.enqueue(
+      recordUuid: id,
+      tableName: 'files',
+      action: 'upload_file',
+      payload: payload,
+    );
+    return model;
   }
 
   Future<void> deleteFile(String id, String storagePath) async {
     await _db.deleteFileLocal(id);
-
     if (_online) {
       await SupabaseProvider.storage.remove([storagePath]);
       await SupabaseProvider.from('files').delete().eq('id', id);
     } else {
       await _sync.enqueue(
-        recordUuid: id,
-        tableName: 'files',
-        action: 'delete',
+        recordUuid: id, tableName: 'files', action: 'delete',
         payload: {'id': id, 'storage_path': storagePath},
       );
     }
@@ -890,34 +759,26 @@ class AppRepository {
   Future<Map<String, dynamic>> getFinancialSummary() async {
     final userId = SupabaseProvider.userId;
     if (userId == null) return {};
-
     if (_online) {
       try {
         final result = await SupabaseProvider.rpc(
           'get_financial_summary',
           params: {'p_dentist_id': userId},
         );
-        // Cache individual records via background sync already handled
         return result as Map<String, dynamic>;
       } catch (_) {}
     }
-    // Offline fallback — compute locally
     return _db.computeFinancialSummary(userId);
   }
 
   Future<Map<String, dynamic>> getMonthlyReport(int year, int month) async {
     final userId = SupabaseProvider.userId;
     if (userId == null) return {};
-
     if (_online) {
       try {
         final result = await SupabaseProvider.rpc(
           'get_monthly_report',
-          params: {
-            'p_dentist_id': userId,
-            'p_year': year,
-            'p_month': month,
-          },
+          params: {'p_dentist_id': userId, 'p_year': year, 'p_month': month},
         );
         return result as Map<String, dynamic>;
       } catch (_) {}
@@ -925,9 +786,8 @@ class AppRepository {
     return _db.computeMonthlyReport(userId, year, month);
   }
 
-  // ─── Helpers ───────────────────────────────────────────────────────────
+  // ─── Helpers ──────────────────────────────────────────────────────────
 
-  /// Fire-and-forget background sync — errors are silently ignored.
   void _bgSync(Future<void> Function() fn) {
     fn().catchError((_) {});
   }
