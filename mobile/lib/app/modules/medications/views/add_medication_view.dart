@@ -179,9 +179,8 @@ class _AddMedicationViewState extends State<AddMedicationView> {
         'prescribed_date': Formatters.dateIso(_prescribedDate),
       });
 
-      // Navigate back FIRST so it always works
+      // Navigate back first — works whether online or offline
       Get.back();
-
       Get.snackbar(
         'success'.tr,
         'medication_prescribed'.tr,

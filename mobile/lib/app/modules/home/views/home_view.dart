@@ -149,7 +149,7 @@ class HomeView extends GetView<HomeController> {
   }
 }
 
-// ─── Offline / Sync Banner ────────────────────────────────────────────────────
+// ─── Sync Status Badge ───────────────────────────────────────────────────────
 
 class _OfflineBanner extends StatelessWidget {
   final bool isDark;
@@ -159,75 +159,57 @@ class _OfflineBanner extends StatelessWidget {
   Widget build(BuildContext context) {
     final connectivity = ConnectivityService.to;
     final sync = SyncService.to;
+    final topPad = MediaQuery.of(context).padding.top;
 
     return Obx(() {
       final online = connectivity.isOnline.value;
       final pending = sync.pendingCount.value;
       final syncing = sync.isSyncing.value;
 
-      // Nothing to show when online with no pending ops
+      // Only show when there is something to communicate
       if (online && pending == 0 && !syncing) return const SizedBox.shrink();
 
-      Color bgColor;
-      IconData icon;
-      String message;
+      Color badgeColor;
+      Widget badgeChild;
 
       if (!online) {
-        bgColor = Colors.amber.shade700;
-        icon = Icons.wifi_off_rounded;
-        message = pending > 0
-            ? 'Offline · $pending change${pending == 1 ? '' : 's'} pending'
-            : 'Offline';
+        badgeColor = Colors.amber.shade700;
+        badgeChild = const Icon(Icons.wifi_off_rounded, color: Colors.white, size: 16);
       } else if (syncing) {
-        bgColor = AppColors.primary;
-        icon = Icons.sync_rounded;
-        message = 'Syncing changes…';
+        badgeColor = AppColors.primary;
+        badgeChild = const SizedBox(
+          width: 16,
+          height: 16,
+          child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
+        );
       } else {
-        // online, not syncing, but pending > 0 (edge case)
-        bgColor = Colors.orange.shade600;
-        icon = Icons.cloud_upload_rounded;
-        message = '$pending pending sync${pending == 1 ? '' : 's'}';
+        // Pending but not yet syncing
+        badgeColor = Colors.orange.shade600;
+        badgeChild = const Icon(Icons.cloud_upload_rounded, color: Colors.white, size: 16);
       }
 
       return Positioned(
-        top: MediaQuery.of(context).padding.top + 8,
-        left: 16,
+        top: topPad + 12,
         right: 16,
-        child: AnimatedSlide(
-          offset: Offset.zero,
-          duration: const Duration(milliseconds: 300),
-          curve: Curves.easeOut,
-          child: Material(
-            elevation: 4,
-            borderRadius: BorderRadius.circular(10),
-            color: bgColor,
-            child: Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
-              child: Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  syncing
-                      ? const SizedBox(
-                          width: 16,
-                          height: 16,
-                          child: CircularProgressIndicator(
-                            strokeWidth: 2,
-                            color: Colors.white,
-                          ),
-                        )
-                      : Icon(icon, color: Colors.white, size: 16),
-                  const SizedBox(width: 8),
-                  Text(
-                    message,
-                    style: const TextStyle(
-                      color: Colors.white,
-                      fontSize: 13,
-                      fontWeight: FontWeight.w600,
-                    ),
-                  ),
-                ],
-              ),
+        child: AnimatedScale(
+          scale: 1.0,
+          duration: const Duration(milliseconds: 250),
+          curve: Curves.elasticOut,
+          child: Container(
+            width: 32,
+            height: 32,
+            decoration: BoxDecoration(
+              color: badgeColor,
+              shape: BoxShape.circle,
+              boxShadow: [
+                BoxShadow(
+                  color: badgeColor.withValues(alpha: 0.4),
+                  blurRadius: 8,
+                  offset: const Offset(0, 2),
+                ),
+              ],
             ),
+            child: Center(child: badgeChild),
           ),
         ),
       );

@@ -314,19 +314,18 @@ class _AddTreatmentViewState extends State<AddTreatmentView> {
         'treatment_date': Formatters.dateIso(_treatmentDate),
       });
 
+      // Navigate back first — works whether online or offline
+      Get.back();
       Get.snackbar('success'.tr, 'treatment_added'.tr,
           snackPosition: SnackPosition.BOTTOM);
 
-      // Refresh patient detail if it's registered
+      // Refresh in background
       if (Get.isRegistered<PatientDetailController>()) {
         Get.find<PatientDetailController>().loadPatientData();
       }
-      // Refresh dashboard
       if (Get.isRegistered<DashboardController>()) {
         Get.find<DashboardController>().refreshDashboard();
       }
-
-      Get.back();
     } catch (e) {
       Get.snackbar('error'.tr, 'something_went_wrong'.tr,
           snackPosition: SnackPosition.BOTTOM);

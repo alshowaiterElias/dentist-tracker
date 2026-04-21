@@ -3,6 +3,7 @@ import 'app_routes.dart';
 import '../modules/auth/bindings/auth_binding.dart';
 import '../modules/auth/views/login_view.dart';
 import '../modules/auth/views/register_view.dart';
+import '../modules/auth/views/email_verification_view.dart';
 import '../modules/home/bindings/home_binding.dart';
 import '../modules/home/views/home_view.dart';
 import '../modules/patients/bindings/patient_binding.dart';
@@ -41,6 +42,11 @@ class AppPages {
       name: AppRoutes.register,
       page: () => const RegisterView(),
       binding: AuthBinding(),
+      transition: Transition.rightToLeft,
+    ),
+    GetPage(
+      name: AppRoutes.emailVerification,
+      page: () => const EmailVerificationView(),
       transition: Transition.rightToLeft,
     ),
     GetPage(

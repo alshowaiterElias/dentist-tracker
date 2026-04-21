@@ -9,6 +9,7 @@ import '../../../data/repositories/app_repository.dart';
 import '../../../data/models/profile_model.dart';
 import '../../../routes/app_routes.dart';
 import '../../auth/controllers/auth_controller.dart';
+import '../../auth/views/email_verification_view.dart';
 
 /// Settings screen: profile, revenue %, language, theme, logout.
 class SettingsView extends StatefulWidget {
@@ -55,6 +56,37 @@ class _SettingsViewState extends State<SettingsView> {
 
                 // ─── Revenue Percentage ──────────────────────
                 _buildRevenueSection(isDark),
+                const SizedBox(height: 24),
+
+                // ─── Security ───────────────────────────────
+                _buildSectionTitle('security'.tr, isDark),
+                const SizedBox(height: 12),
+                AppCard(
+                  onTap: () => showChangePasswordSheet(context),
+                  padding: const EdgeInsets.all(16),
+                  child: Row(
+                    children: [
+                      Icon(
+                        Icons.lock_reset_outlined,
+                        color: isDark ? AppColors.primaryLight : AppColors.primary,
+                        size: 20,
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: Text(
+                          'change_password'.tr,
+                          style: AppTextStyles.labelLarge.copyWith(
+                            color: isDark ? AppColors.darkText : AppColors.lightText,
+                          ),
+                        ),
+                      ),
+                      Icon(
+                        Icons.chevron_right_rounded,
+                        color: isDark ? AppColors.darkTextTertiary : AppColors.lightTextTertiary,
+                      ),
+                    ],
+                  ),
+                ),
                 const SizedBox(height: 24),
 
                 // ─── Appearance ──────────────────────────────

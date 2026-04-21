@@ -243,13 +243,12 @@ class _AddAppointmentViewState extends State<AddAppointmentView> {
         'notes': _notesCtrl.text.trim().isEmpty ? null : _notesCtrl.text.trim(),
       });
 
+      // Navigate back with result=true so calling screen can refresh
+      Get.back(result: true);
       Get.snackbar('success'.tr, 'appointment_created'.tr,
           snackPosition: SnackPosition.BOTTOM);
 
-      // Navigate back FIRST so it always works
-      Get.back();
-
-      // Refresh controllers in background
+      // Also refresh any active controllers in background
       if (Get.isRegistered<PatientDetailController>()) {
         Get.find<PatientDetailController>().loadPatientData();
       }

@@ -542,6 +542,11 @@ class _TreatmentDetailViewState extends State<TreatmentDetailView> {
                             : notesCtrl.text.trim(),
                         'payment_date': Formatters.dateIso(DateTime.now()),
                       });
+                      // Update local treatment's amount_paid immediately
+                      final newPaid = (t.amountPaid + amount)
+                          .clamp(0, double.infinity);
+                      await _repo.updateTreatment(t.id,
+                          {'amount_paid': newPaid});
                       Get.back();
                       Get.snackbar(
                         'success'.tr,

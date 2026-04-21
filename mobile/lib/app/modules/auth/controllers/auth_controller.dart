@@ -61,11 +61,31 @@ class AuthController extends GetxController {
       );
 
       if (response.session != null) {
+        // Check if email is confirmed
+        final user = response.user;
+        if (user != null && user.emailConfirmedAt == null) {
+          // Email not yet confirmed → send to verification screen
+          Get.toNamed(
+            AppRoutes.emailVerification,
+            arguments: {'email': emailController.text.trim()},
+          );
+          return;
+        }
         await _ensureProfile();
         Get.offAllNamed(AppRoutes.home);
       }
     } on AuthException catch (e) {
-      Get.snackbar('error'.tr, e.message, snackPosition: SnackPosition.BOTTOM);
+      // Supabase throws "Email not confirmed" as AuthException
+      if (e.message.toLowerCase().contains('email not confirmed') ||
+          e.message.toLowerCase().contains('email_not_confirmed')) {
+        Get.toNamed(
+          AppRoutes.emailVerification,
+          arguments: {'email': emailController.text.trim()},
+        );
+      } else {
+        Get.snackbar('error'.tr, e.message,
+            snackPosition: SnackPosition.BOTTOM);
+      }
     } catch (e) {
       Get.snackbar(
         'error'.tr,
@@ -91,16 +111,14 @@ class AuthController extends GetxController {
       );
 
       if (response.user != null) {
-        // Check if email confirmation is required
         if (response.user!.emailConfirmedAt == null) {
-          Get.snackbar(
-            'check_email'.tr,
-            'confirm_email_sent'.tr,
-            snackPosition: SnackPosition.BOTTOM,
-            duration: const Duration(seconds: 5),
+          // Needs email confirmation → show verification screen
+          Get.toNamed(
+            AppRoutes.emailVerification,
+            arguments: {'email': emailController.text.trim()},
           );
         } else {
-          // Auto-confirmed (if Supabase has confirm email disabled)
+          // Auto-confirmed (email confirmation disabled in Supabase)
           await _ensureProfile();
           Get.offAllNamed(AppRoutes.home);
         }
