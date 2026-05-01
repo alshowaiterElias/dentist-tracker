@@ -52,6 +52,23 @@ const Map<String, String> enUS = {
   'no_account': "Don't have an account?",
   'have_account': 'Already have an account?',
   'or': 'or',
+  'verify_email': 'Verify Your Email',
+  'verify_email_desc': 'We sent a verification link to',
+  'resend_email': 'Resend Email',
+  'back_to_login': 'Back to Login',
+  'security': 'Security',
+  'change_password': 'Change Password',
+  'current_password': 'Current Password',
+  'new_password': 'New Password',
+  'confirm_password': 'Confirm Password',
+  'passwords_dont_match': 'Passwords do not match',
+  'password_changed': 'Password changed successfully',
+  'required': 'Required',
+
+  // ─── Phone Auth ──────────────────────────────────────
+  'coming_soon': 'Soon',
+  'phone_auth_coming_soon_title': 'Coming Soon',
+  'phone_auth_coming_soon_desc': 'Phone login will be available in a future update. Please use email for now.',
 
   // ─── Validation ──────────────────────────────────────
   'is_required': 'is required',
@@ -89,6 +106,30 @@ const Map<String, String> enUS = {
   'quick_actions': 'Quick Actions',
   'add_patient': 'Add Patient',
   'add_appointment': 'Add Appointment',
+  'today': 'Today',
+  'patient': 'Patient',
+  'treatment': 'Treatment',
+  'actions': 'Actions',
+  'daily_summary': 'Daily Summary',
+  'new_patient_visit': 'New Patient Visit',
+  'new_patient_visit_desc': 'Register patient, treatment & appointment',
+  'returning_patient_visit': 'Returning Patient',
+  'returning_patient_visit_desc': 'Existing patient with new treatment',
+  'schedule_follow_up': 'Schedule follow-up appointment',
+
+  // ─── Greetings ──────────────────────────────────────
+  'good_morning': 'GOOD MORNING',
+  'good_afternoon': 'GOOD AFTERNOON',
+  'good_evening': 'GOOD EVENING',
+
+  // ─── Clinic Subtitle ───────────────────────────────
+  'clinic_subtitle': 'Your Clinic Assistant',
+
+  // ─── Offline File Upload ────────────────────────────
+  'file_saved_offline': 'File saved — will upload when back online',
+
+  // ─── Duplicate Patient ──────────────────────────────
+  'duplicate_patient_phone': 'A patient with this phone number already exists.',
 
   // ─── Patients ────────────────────────────────────────
   'patient_list': 'Patient List',
@@ -228,6 +269,14 @@ const Map<String, String> enUS = {
   'logout_confirm': 'Are you sure you want to logout?',
   'settings_saved': 'Settings saved',
   'revenue_warning_zero': 'Setting 0% means no dentist earnings will be calculated.',
+  'data_sync': 'Data & Sync',
+  'sync_now': 'Sync Now',
+  'syncing': 'Syncing...',
+  'offline': 'Offline — connect to sync',
+  'pending_changes': 'pending changes',
+  'all_synced': 'All data is synced',
+  'sync_complete': 'Sync completed successfully',
+  'sync_failed_hint': 'some items failed, check logs',
 
   // ─── Currency ────────────────────────────────────────
   'currency': 'YER',
@@ -288,4 +337,33 @@ const Map<String, String> enUS = {
   'tos_section_4_title': '4. Limitation of Liability',
   'tos_section_4_body':
       'Dentist Tracker is provided "as is" without warranties of any kind. We are not liable for any loss of patient data, missed appointments, or financial discrepancies arising from the use of this application. Always maintain independent backups of critical patient records.',
+
+  // ─── Version Update ────────────────────────────────────
+  'update_required': 'Update Required',
+  'update_available': 'Update Available',
+  'update_required_desc': 'Your app version is no longer supported. Please update to continue using Dentist Tracker.',
+  'update_available_desc': 'A newer version of Dentist Tracker is available with improvements and bug fixes.',
+  'update_now': 'Update Now',
+  'update_later': 'Later',
+  'current_version': 'Current',
+  'store_url_not_set': 'Store link is not configured yet.',
+  'could_not_open_store': 'Could not open the app store.',
+
+  // ─── Email Verification ────────────────────────────────
+  'email_verified': 'Email Verified!',
+  'redirecting': 'Setting up your account...',
+
+  // ─── Delete Account ────────────────────────────────────
+  'delete_account': 'Delete Account',
+  'delete_account_confirm': 'This will submit a request to permanently delete your account and all associated data including patients, treatments, appointments, and uploaded files. This action cannot be undone.',
+  'delete_account_type_confirm': 'Confirm Deletion',
+  'delete_account_type_desc': 'Type DELETE to confirm account deletion:',
+  'delete_account_requested': 'Your account deletion request has been submitted. Your data will be removed within 30 days.',
+
+  // ─── Deletion Pending ──────────────────────────────────
+  'deletion_pending_title': 'Account Scheduled for Deletion',
+  'deletion_pending_desc': 'Your account is scheduled to be permanently deleted. All your data including patients, treatments, and files will be removed.\n\nIf this was a mistake, you can cancel the deletion request below.',
+  'cancel_deletion': 'Cancel Deletion Request',
+  'deletion_cancelled': 'Deletion request cancelled. Your account has been restored.',
+  'sign_out': 'Sign Out',
 };

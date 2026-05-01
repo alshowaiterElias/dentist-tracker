@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
+import '../../../core/constants/app_constants.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../core/theme/app_text_styles.dart';
 import '../../../core/widgets/app_button.dart';
@@ -83,7 +84,7 @@ class RegisterView extends GetView<AuthController> {
                                   _buildModeToggle(isEmail),
                                   const SizedBox(height: 16),
 
-                                  // Email or Phone field
+                                  // Email fields (always shown when email mode)
                                   if (isEmail) ...[
                                     AppTextField(
                                       controller: controller.emailController,
@@ -102,7 +103,10 @@ class RegisterView extends GetView<AuthController> {
                                       validator: Validators.password,
                                       textInputAction: TextInputAction.done,
                                     ),
-                                  ] else ...[
+                                  ],
+
+                                  // Phone fields (only if phone auth is enabled)
+                                  if (!isEmail && AppConstants.isPhoneAuthEnabled) ...[
                                     AppTextField(
                                       controller: controller.phoneController,
                                       hint: 'phone'.tr,
@@ -132,7 +136,7 @@ class RegisterView extends GetView<AuthController> {
                                       icon: Icons.person_add_rounded,
                                       onPressed: controller.registerWithEmail,
                                     )
-                                  else
+                                  else if (AppConstants.isPhoneAuthEnabled)
                                     AppButton(
                                       label: isOtpSent
                                           ? 'verify_otp'.tr
@@ -187,6 +191,8 @@ class RegisterView extends GetView<AuthController> {
   }
 
   Widget _buildModeToggle(bool isEmail) {
+    final phoneEnabled = AppConstants.isPhoneAuthEnabled;
+
     return Container(
       decoration: BoxDecoration(
         color: Colors.white.withValues(alpha: 0.08),
@@ -195,6 +201,7 @@ class RegisterView extends GetView<AuthController> {
       padding: const EdgeInsets.all(4),
       child: Row(
         children: [
+          // ─── Email Tab ─────────────────────────────────
           Expanded(
             child: GestureDetector(
               onTap: () {
@@ -220,6 +227,8 @@ class RegisterView extends GetView<AuthController> {
               ),
             ),
           ),
+
+          // ─── Phone Tab (with Coming Soon badge if disabled) ──
           Expanded(
             child: GestureDetector(
               onTap: () {
@@ -229,17 +238,46 @@ class RegisterView extends GetView<AuthController> {
                 duration: const Duration(milliseconds: 250),
                 padding: const EdgeInsets.symmetric(vertical: 12),
                 decoration: BoxDecoration(
-                  color: !isEmail
+                  color: !isEmail && phoneEnabled
                       ? Colors.white.withValues(alpha: 0.15)
                       : Colors.transparent,
                   borderRadius: BorderRadius.circular(10),
                 ),
                 child: Center(
-                  child: Text(
-                    'phone'.tr,
-                    style: AppTextStyles.labelMedium.copyWith(
-                      color: !isEmail ? Colors.white : Colors.white54,
-                    ),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Text(
+                        'phone'.tr,
+                        style: AppTextStyles.labelMedium.copyWith(
+                          color: phoneEnabled
+                              ? (!isEmail ? Colors.white : Colors.white54)
+                              : Colors.white38,
+                        ),
+                      ),
+                      if (!phoneEnabled) ...[
+                        const SizedBox(width: 6),
+                        Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 6,
+                            vertical: 2,
+                          ),
+                          decoration: BoxDecoration(
+                            color: Colors.amber.shade700,
+                            borderRadius: BorderRadius.circular(6),
+                          ),
+                          child: Text(
+                            'coming_soon'.tr,
+                            style: const TextStyle(
+                              fontSize: 8,
+                              fontWeight: FontWeight.w700,
+                              color: Colors.white,
+                              letterSpacing: 0.5,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ],
                   ),
                 ),
               ),

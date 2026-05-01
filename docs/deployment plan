@@ -1,0 +1,216 @@
+# Production Deployment Remediation Plan
+
+## Current State Assessment
+
+After a full codebase audit, the app is in **good shape** for a v1.0 release. The key areas below move it from "working" to "production-grade."
+
+### Already Completed ✅
+- [x] Hardcoded Supabase keys removed → `EnvConfig` + `--dart-define`
+- [x] Phone OTP "Coming Soon" badge on login/register toggle
+- [x] Phone auth guard (`isPhoneAuthEnabled = false`) in controller
+- [x] App icon generated and applied (Android + iOS)
+- [x] Android signing keystore + `key.properties` configured
+- [x] `build.gradle.kts` with R8 minification + ProGuard
+- [x] `.gitignore` covers `.env.local`, `key.properties`, `*.jks`
+- [x] `cleartext traffic` set to `false` in AndroidManifest
+- [x] iOS privacy descriptions (camera, photo library)
+- [x] iOS `CFBundleName` fixed
+- [x] All translation keys verified complete (EN + AR)
+- [x] Sync service with logging + 23505/23503 auto-resolution
+- [x] Manual sync button in Settings
+
+---
+
+## Phase 1: Critical Issues
+
+### 1.1 Silent Error Swallowing in AppRepository
+
+> [!CAUTION]
+> **10 instances** of `catch (_) {}` silently swallow errors in the data layer. If an online write to Supabase fails, the app falls through to offline mode without any logging, meaning data loss can occur silently.
+
+**Files:**
+- [app_repository.dart](file:///d:/Dentist%20Tracker/mobile/lib/app/data/repositories/app_repository.dart) — Lines 350, 416, 469, 527, 591, 664, 727, 824, 839
+
+**Fix:** Replace each `catch (_) {}` in write operations (`createPatient`, `createTreatment`, `createPayment`, `createAppointment`, `createMedication`, `createFileRecord`) with:
+1. `debugPrint` logging so failures are visible in development
+2. Ensure the fallthrough to offline/queue path always executes (current behavior is correct, just needs visibility)
+
+For `_bgSync` background reads (the read-cache-refresh pattern), `catchError` is acceptable but should still log.
+
+---
+
+### 1.2 N+1 Query in `getDailyVisits()`
+
+> [!WARNING]
+> `getDailyVisits()` (line 762-810) fetches appointments, then for **each appointment** calls `getTreatments(patientId)` AND `getAppointments(patientId)` again. With 20 appointments/day this fires ~60 DB queries.
+
+**Fix:** Batch-load all treatments and appointments for the day's patient IDs in a single pass, then assemble the view models from the pre-loaded maps. This eliminates the N+1 problem.
+
+---
+
+### 1.3 Splash Screen Auth Race Condition
+
+> [!WARNING]
+> `splash_view.dart` line 43: `Future.delayed(2000ms, _checkAuth)` checks the session after a fixed delay, but `AuthController.setupAuthListener()` is initialized in `GetMaterialApp.onInit`. If the auth listener fires a `signedIn` event (e.g., session refresh), it navigates to `/home` — while the splash delay also navigates. This causes a **double navigation race**.
+
+**Fix:** Remove the auth listener's automatic navigation when the current route is `/splash`, OR remove the splash timer and let the auth listener be the sole navigation driver. The splash should only animate, not make auth decisions independently.
+
+---
+
+### 1.4 Background Sync Errors Swallowed
+
+> [!IMPORTANT]
+> `_bgSync` helper (line 846-848) uses `.catchError((_) {})` which silently swallows all background refresh failures. Network timeouts, auth token expiry, or schema mismatches will be invisible.
+
+**Fix:** Add `debugPrint` logging inside `_bgSync`'s catch.
+
+---
+
+## Phase 2: Code Quality & Robustness
+
+### 2.1 Phone Auth Dead Code Cleanup
+
+The phone OTP UI already shows "Coming Soon" and the controller guards all phone methods. However:
+
+**Current Issue:** When phone is disabled and user taps the phone toggle, the register view still calls `controller.toggleAuthMode()` which shows a snackbar. This is correct. BUT the phone tab in the register view still highlights/activates visually even when `isPhoneAuthEnabled = false`, because `toggleAuthMode()` returns early but the toggle still changes the visual state in register's `_buildModeToggle`.
+
+**Fix:** Ensure register's mode toggle also uses the same guard pattern as login (don't allow `authMode` to change to `phone` when disabled). Currently login does this correctly, but register's tap handler calls `toggleAuthMode()` which already returns early — so the mode doesn't change. This is actually correct. **No fix needed.** ✅
+
+**Optional cleanup:** Remove the dead `http` import and related OTP code from `auth_controller.dart` to reduce bundle size and confusion. These are guarded by `isPhoneAuthEnabled` but serve no purpose in production until the backend is deployed.
+
+### 2.2 Offline-First Write Resilience
+
+**Current pattern in `createPatient()` etc.:**
+```dart
+if (_online) {
+  try { /* Supabase write */ } catch (_) {}
+}
+// Offline fallthrough: local write + sync queue
+```
+
+**Issue:** If the online write succeeds at line 343 but the SELECT on line 345 fails (timeout, partial response), the method falls through and creates a DUPLICATE local record with a NEW UUID, then queues a sync insert. This results in a duplicate patient.
+
+**Fix:** Generate the UUID upfront (before the online/offline branch), pass it in the `insert()` payload, and use `upsert` for the local write. This makes the operation idempotent regardless of which path succeeds.
+
+### 2.3 Treatment `amountPaid` Sync
+
+When a payment is recorded, the treatment's `amount_paid` field should be recalculated. Currently the `TreatmentDetailView` updates this locally, but if the payment is created offline and synced later, the treatment's `amount_paid` in Supabase may be stale.
+
+**Fix:** Add a Supabase database trigger or RPC function that recalculates `amount_paid` on the treatment whenever a payment is inserted/updated/deleted.
+
+---
+
+## Phase 3: UI/UX Polish
+
+### 3.1 Splash Screen → Use App Icon
+
+The splash screen shows a generic `Icons.medical_services_rounded` icon. It should use the custom app icon we generated.
+
+### 3.2 RTL Layout Verification
+
+The app supports Arabic but some layouts may not handle RTL correctly:
+- Verify `AlignmentDirectional` is used instead of `Alignment.centerLeft`
+- Verify `EdgeInsetsDirectional` is used where applicable
+- Test the dashboard table, settings, and patient detail in Arabic mode
+
+### 3.3 Empty State Handling
+
+Verify all list views show proper empty states:
+- Dashboard: no appointments for the day
+- Patient list: no patients yet
+- Treatment list: no treatments
+- Calendar: no appointments for the month
+
+---
+
+## Phase 4: Build & Deployment Hardening
+
+### 4.1 Version Bumping System
+
+Currently `1.0.0+1` is hardcoded in `pubspec.yaml`. For subsequent releases:
+- Set up a version bumping convention
+- Consider auto-incrementing `versionCode` from CI
+
+### 4.2 Release Build Verification
+
+Build both split APKs and AAB with `--dart-define` env vars and verify:
+- App launches without `StateError` (env validation passes)
+- Login/register works
+- Data syncs correctly
+- Manual sync button works
+
+### 4.3 Admin Panel Deployment
+
+Deploy the Next.js admin panel to Vercel:
+- Set env vars in Vercel dashboard
+- Verify admin login and user management
+
+---
+
+## Proposed Changes Summary
+
+### Critical (Phase 1)
+
+#### [MODIFY] [app_repository.dart](file:///d:/Dentist%20Tracker/mobile/lib/app/data/repositories/app_repository.dart)
+- Add `debugPrint` logging to all `catch (_) {}` blocks in write operations
+- Refactor `getDailyVisits()` to batch-load data (eliminate N+1)
+- Add `debugPrint` to `_bgSync` catch
+- Generate UUIDs upfront in `create*()` methods for idempotency
+
+#### [MODIFY] [splash_view.dart](file:///d:/Dentist%20Tracker/mobile/lib/app/modules/splash/views/splash_view.dart)
+- Fix auth race condition: use a single navigation driver
+
+#### [MODIFY] [auth_controller.dart](file:///d:/Dentist%20Tracker/mobile/lib/app/modules/auth/controllers/auth_controller.dart)
+- Fix double-navigation from splash + auth listener overlap
+
+---
+
+### Quality (Phase 2)
+
+#### [MODIFY] [app_repository.dart](file:///d:/Dentist%20Tracker/mobile/lib/app/data/repositories/app_repository.dart)
+- Make `create*()` methods idempotent with pre-generated UUIDs
+
+#### [MODIFY] [auth_controller.dart](file:///d:/Dentist%20Tracker/mobile/lib/app/modules/auth/controllers/auth_controller.dart)
+- Remove dead `http` import and OTP code (optional cleanup)
+
+---
+
+### UI/UX (Phase 3)
+
+#### [MODIFY] [splash_view.dart](file:///d:/Dentist%20Tracker/mobile/lib/app/modules/splash/views/splash_view.dart)
+- Replace generic icon with app icon image
+
+---
+
+## Verification Plan
+
+### Automated
+```bash
+flutter analyze lib        # Zero warnings/errors
+flutter test               # All tests pass (if any exist)
+flutter build apk --release --split-per-abi \
+  --dart-define=SUPABASE_URL=... \
+  --dart-define=SUPABASE_ANON_KEY=...   # Clean build
+```
+
+### Manual Testing Checklist
+- [ ] Fresh install → splash → login works
+- [ ] Register new user → email verification flow
+- [ ] Phone tab shows "Coming Soon" badge, cannot proceed
+- [ ] Create patient → appears in list immediately
+- [ ] Create treatment with tooth selection → visible in detail
+- [ ] Record payment → updates treatment `amount_paid`
+- [ ] Dashboard schedule table shows today's appointments
+- [ ] Mark attendance (check/uncheck) works
+- [ ] Toggle airplane mode → go offline → create patient → go online → sync
+- [ ] Settings → Sync Now → shows correct status
+- [ ] Arabic language switch → all text translated, RTL layout
+- [ ] Dark mode → all screens readable
+- [ ] Change password → works correctly
+
+## Open Questions
+
+> [!IMPORTANT]
+> 1. **Should we remove all phone OTP code entirely** (imports, controller methods, UI fields) or keep it guarded for future enablement?
+> 2. **Do you want a Supabase DB trigger** for auto-recalculating `amount_paid` on treatments when payments change, or is the current client-side approach sufficient?
+> 3. **Is the admin panel ready for deployment**, or does it need its own audit first?

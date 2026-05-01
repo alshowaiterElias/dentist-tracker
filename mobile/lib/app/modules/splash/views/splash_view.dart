@@ -4,8 +4,11 @@ import 'package:get/get.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../core/theme/app_text_styles.dart';
+import '../../../services/version_check_service.dart';
+import '../../../update_dialog.dart';
+import '../../auth/controllers/auth_controller.dart';
 
-/// Animated splash screen with auth state check.
+/// Animated splash screen with version check + auth state check.
 class SplashView extends StatefulWidget {
   const SplashView({super.key});
 
@@ -18,6 +21,8 @@ class _SplashViewState extends State<SplashView>
   late AnimationController _controller;
   late Animation<double> _fadeAnim;
   late Animation<double> _scaleAnim;
+
+  bool _navigated = false;
 
   @override
   void initState() {
@@ -39,14 +44,51 @@ class _SplashViewState extends State<SplashView>
 
     _controller.forward();
 
-    // Check auth after animation
-    Future.delayed(const Duration(milliseconds: 2000), _checkAuth);
+    // Version check + auth after animation completes
+    Future.delayed(const Duration(milliseconds: 2000), _checkVersionThenAuth);
   }
 
-  void _checkAuth() {
+  /// Step 1: Check remote version config.
+  /// Step 2: If force update → block. If optional → show dialog then continue.
+  /// Step 3: Check auth session and navigate.
+  Future<void> _checkVersionThenAuth() async {
+    if (_navigated || !mounted) return;
+
+    final info = await VersionCheckService.check();
+
+    if (!mounted) return;
+
+    if (info.status == UpdateStatus.forceUpdate) {
+      // Block the user — dialog is non-dismissible
+      await UpdateDialog.show(context, info);
+      // If dialog somehow closes (shouldn't for force), re-check
+      return;
+    }
+
+    if (info.status == UpdateStatus.optionalUpdate) {
+      // Show optional update — user can skip
+      if (mounted) {
+        await UpdateDialog.show(context, info);
+      }
+    }
+
+    // Proceed to auth check
+    _navigateToAuth();
+  }
+
+  Future<void> _navigateToAuth() async {
+    if (_navigated || !mounted) return;
+    _navigated = true;
+
     final session = Supabase.instance.client.auth.currentSession;
     if (session != null) {
-      Get.offAllNamed(AppRoutes.home);
+      // Check if the user has a pending deletion request
+      final hasDeletion = await AuthController.checkPendingDeletion();
+      if (hasDeletion) {
+        Get.offAllNamed(AppRoutes.deletionPending);
+      } else {
+        Get.offAllNamed(AppRoutes.home);
+      }
     } else {
       Get.offAllNamed(AppRoutes.login);
     }
@@ -86,10 +128,14 @@ class _SplashViewState extends State<SplashView>
                             width: 2,
                           ),
                         ),
-                        child: const Icon(
-                          Icons.medical_services_rounded,
-                          size: 48,
-                          color: Colors.white,
+                        child: ClipRRect(
+                          borderRadius: BorderRadius.circular(26),
+                          child: Image.asset(
+                            'assets/icon/app_icon.png',
+                            width: 100,
+                            height: 100,
+                            fit: BoxFit.cover,
+                          ),
                         ),
                       ),
                       const SizedBox(height: 24),
@@ -101,7 +147,7 @@ class _SplashViewState extends State<SplashView>
                       ),
                       const SizedBox(height: 8),
                       Text(
-                        'Your Clinic Assistant',
+                        'clinic_subtitle'.tr,
                         style: AppTextStyles.bodyMedium.copyWith(
                           color: Colors.white.withValues(alpha: 0.7),
                         ),

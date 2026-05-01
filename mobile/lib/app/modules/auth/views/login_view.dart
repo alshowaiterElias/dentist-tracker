@@ -1,6 +1,7 @@
 import '../../../routes/app_routes.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
+import '../../../core/constants/app_constants.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../core/theme/app_text_styles.dart';
 import '../../../core/widgets/app_button.dart';
@@ -143,8 +144,8 @@ class LoginView extends GetView<AuthController> {
               ),
             ],
 
-            // ─── Phone Mode ────────────────────────────────
-            if (!isEmail) ...[
+            // ─── Phone Mode (only if enabled) ──────────────
+            if (!isEmail && AppConstants.isPhoneAuthEnabled) ...[
               AppTextField(
                 controller: controller.phoneController,
                 hint: 'phone'.tr,
@@ -180,6 +181,8 @@ class LoginView extends GetView<AuthController> {
   }
 
   Widget _buildModeToggle(bool isEmail) {
+    final phoneEnabled = AppConstants.isPhoneAuthEnabled;
+
     return Container(
       decoration: BoxDecoration(
         color: Colors.white.withValues(alpha: 0.08),
@@ -188,6 +191,7 @@ class LoginView extends GetView<AuthController> {
       padding: const EdgeInsets.all(4),
       child: Row(
         children: [
+          // ─── Email Tab ─────────────────────────────────
           Expanded(
             child: GestureDetector(
               onTap: () {
@@ -213,6 +217,8 @@ class LoginView extends GetView<AuthController> {
               ),
             ),
           ),
+
+          // ─── Phone Tab (with Coming Soon badge if disabled) ──
           Expanded(
             child: GestureDetector(
               onTap: () {
@@ -222,17 +228,49 @@ class LoginView extends GetView<AuthController> {
                 duration: const Duration(milliseconds: 250),
                 padding: const EdgeInsets.symmetric(vertical: 12),
                 decoration: BoxDecoration(
-                  color: !isEmail
+                  color: !isEmail && phoneEnabled
                       ? Colors.white.withValues(alpha: 0.15)
                       : Colors.transparent,
                   borderRadius: BorderRadius.circular(10),
                 ),
                 child: Center(
-                  child: Text(
-                    'login_with_phone'.tr,
-                    style: AppTextStyles.labelMedium.copyWith(
-                      color: !isEmail ? Colors.white : Colors.white54,
-                    ),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Flexible(
+                        child: Text(
+                          'login_with_phone'.tr,
+                          overflow: TextOverflow.ellipsis,
+                          style: AppTextStyles.labelMedium.copyWith(
+                            color: phoneEnabled
+                                ? (!isEmail ? Colors.white : Colors.white54)
+                                : Colors.white38,
+                          ),
+                        ),
+                      ),
+                      if (!phoneEnabled) ...[
+                        const SizedBox(width: 4),
+                        Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 5,
+                            vertical: 2,
+                          ),
+                          decoration: BoxDecoration(
+                            color: Colors.amber.shade700,
+                            borderRadius: BorderRadius.circular(6),
+                          ),
+                          child: Text(
+                            'coming_soon'.tr,
+                            style: const TextStyle(
+                              fontSize: 7,
+                              fontWeight: FontWeight.w700,
+                              color: Colors.white,
+                              letterSpacing: 0.3,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ],
                   ),
                 ),
               ),

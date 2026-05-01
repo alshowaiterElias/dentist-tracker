@@ -13,7 +13,7 @@
 	<key>CFBundleInfoDictionaryVersion</key>
 	<string>6.0</string>
 	<key>CFBundleName</key>
-	<string>dentist_tracker</string>
+	<string>Dentist Tracker</string>
 	<key>CFBundlePackageType</key>
 	<string>APPL</string>
 	<key>CFBundleShortVersionString</key>
@@ -45,6 +45,10 @@
 	<true/>
 	<key>UIApplicationSupportsIndirectInputEvents</key>
 	<true/>
+	<key>NSCameraUsageDescription</key>
+	<string>Dentist Tracker needs camera access to capture patient photos and documents.</string>
+	<key>NSPhotoLibraryUsageDescription</key>
+	<string>Dentist Tracker needs photo library access to attach images to patient records.</string>
 	<!-- Deep link URL scheme for Supabase magic link callback -->
 	<key>CFBundleURLTypes</key>
 	<array>

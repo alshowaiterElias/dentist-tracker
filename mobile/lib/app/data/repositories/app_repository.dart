@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'package:flutter/foundation.dart';
 import 'package:get/get.dart';
 import 'package:uuid/uuid.dart';
 import '../models/patient_model.dart';
@@ -6,6 +7,7 @@ import '../models/treatment_model.dart';
 import '../models/payment_model.dart';
 import '../models/appointment_model.dart';
 import '../models/medication_model.dart';
+import '../models/daily_visit_model.dart';
 import '../models/file_model.dart';
 import '../models/profile_model.dart';
 import '../providers/supabase_provider.dart';
@@ -336,25 +338,27 @@ class AppRepository {
   }
 
   Future<PatientModel> createPatient(Map<String, dynamic> patient) async {
-    // Online: write to Supabase first, cache canonical response (avoids UUID mismatch)
-    if (_online) {
-      try {
-        final data = await SupabaseProvider.from('patients')
-            .insert(patient)
-            .select()
-            .single();
-        final model = PatientModel.fromJson(data);
-        await _db.upsertPatient(model.toLocal());
-        return model;
-      } catch (_) {}
-    }
-    // Offline (or online error): local write + queue
     final id = patient['id'] as String? ?? _uuid.v4();
     final now = DateTime.now().toIso8601String();
     final payload = {
       'id': id, 'created_at': now, 'updated_at': now, 'is_deleted': false,
       ...patient,
     };
+
+    if (_online) {
+      try {
+        final data = await SupabaseProvider.from('patients')
+            .insert(payload)
+            .select()
+            .single();
+        final model = PatientModel.fromJson(data);
+        await _db.upsertPatient(model.toLocal());
+        return model;
+      } catch (e) {
+        debugPrint('[AppRepository] createPatient online failed: $e');
+      }
+    }
+    // Offline or online-error fallthrough: local write + sync queue
     final model = PatientModel.fromJson(payload);
     await _db.upsertPatient(model.toLocal());
     await _sync.enqueue(
@@ -412,7 +416,9 @@ class AppRepository {
           params: {'p_patient_id': patientId},
         );
         return result as Map<String, dynamic>;
-      } catch (_) {}
+      } catch (e) {
+        debugPrint('[AppRepository] getPatientFinancials RPC failed: $e');
+      }
     }
     return _db.computePatientFinancials(patientId);
   }
@@ -456,20 +462,23 @@ class AppRepository {
   }
 
   Future<TreatmentModel> createTreatment(Map<String, dynamic> treatment) async {
+    final id = treatment['id'] as String? ?? _uuid.v4();
+    final now = DateTime.now().toIso8601String();
+    final payload = {'id': id, 'created_at': now, ...treatment};
+
     if (_online) {
       try {
         final data = await SupabaseProvider.from('treatments')
-            .insert(treatment)
+            .insert(payload)
             .select()
             .single();
         final model = TreatmentModel.fromJson(data);
         await _db.upsertTreatment(model.toLocal());
         return model;
-      } catch (_) {}
+      } catch (e) {
+        debugPrint('[AppRepository] createTreatment online failed: $e');
+      }
     }
-    final id = treatment['id'] as String? ?? _uuid.v4();
-    final now = DateTime.now().toIso8601String();
-    final payload = {'id': id, 'created_at': now, ...treatment};
     final model = TreatmentModel.fromJson(payload);
     await _db.upsertTreatment(model.toLocal());
     await _sync.enqueue(
@@ -514,20 +523,23 @@ class AppRepository {
   }
 
   Future<PaymentModel> createPayment(Map<String, dynamic> payment) async {
+    final id = payment['id'] as String? ?? _uuid.v4();
+    final now = DateTime.now().toIso8601String();
+    final payload = {'id': id, 'payment_date': now, ...payment};
+
     if (_online) {
       try {
         final data = await SupabaseProvider.from('payments')
-            .insert(payment)
+            .insert(payload)
             .select()
             .single();
         final model = PaymentModel.fromJson(data);
         await _db.upsertPayment(model.toLocal());
         return model;
-      } catch (_) {}
+      } catch (e) {
+        debugPrint('[AppRepository] createPayment online failed: $e');
+      }
     }
-    final id = payment['id'] as String? ?? _uuid.v4();
-    final now = DateTime.now().toIso8601String();
-    final payload = {'id': id, 'payment_date': now, ...payment};
     final model = PaymentModel.fromJson(payload);
     await _db.upsertPayment(model.toLocal());
     await _sync.enqueue(
@@ -578,20 +590,23 @@ class AppRepository {
   }
 
   Future<AppointmentModel> createAppointment(Map<String, dynamic> apt) async {
+    final id = apt['id'] as String? ?? _uuid.v4();
+    final now = DateTime.now().toIso8601String();
+    final payload = {'id': id, 'created_at': now, 'status': 'scheduled', ...apt};
+
     if (_online) {
       try {
         final data = await SupabaseProvider.from('appointments')
-            .insert(apt)
+            .insert(payload)
             .select('*, patients(full_name, phone)')
             .single();
         final model = AppointmentModel.fromJson(data);
         await _db.upsertAppointment(model.toLocal());
         return model;
-      } catch (_) {}
+      } catch (e) {
+        debugPrint('[AppRepository] createAppointment online failed: $e');
+      }
     }
-    final id = apt['id'] as String? ?? _uuid.v4();
-    final now = DateTime.now().toIso8601String();
-    final payload = {'id': id, 'created_at': now, 'status': 'scheduled', ...apt};
     final model = AppointmentModel.fromJson(payload);
     await _db.upsertAppointment(model.toLocal());
     await _sync.enqueue(
@@ -651,20 +666,23 @@ class AppRepository {
   }
 
   Future<MedicationModel> createMedication(Map<String, dynamic> med) async {
+    final id = med['id'] as String? ?? _uuid.v4();
+    final now = DateTime.now().toIso8601String();
+    final payload = {'id': id, 'prescribed_date': now, ...med};
+
     if (_online) {
       try {
         final data = await SupabaseProvider.from('medications')
-            .insert(med)
+            .insert(payload)
             .select()
             .single();
         final model = MedicationModel.fromJson(data);
         await _db.upsertMedication(model.toLocal());
         return model;
-      } catch (_) {}
+      } catch (e) {
+        debugPrint('[AppRepository] createMedication online failed: $e');
+      }
     }
-    final id = med['id'] as String? ?? _uuid.v4();
-    final now = DateTime.now().toIso8601String();
-    final payload = {'id': id, 'prescribed_date': now, ...med};
     final model = MedicationModel.fromJson(payload);
     await _db.upsertMedication(model.toLocal());
     await _sync.enqueue(
@@ -714,24 +732,26 @@ class AppRepository {
   /// locally) to avoid UUID mismatch duplication. When offline, stores locally
   /// and queues an upload_file sync operation.
   Future<FileModel> createFileRecord(Map<String, dynamic> file) async {
+    final id = file['id'] as String? ?? _uuid.v4();
+    final now = DateTime.now().toIso8601String();
+    final payload = {'id': id, 'uploaded_at': now, ...file};
+
     if (_online) {
       try {
         final data = await SupabaseProvider.from('files')
-            .insert(file)
+            .insert(payload)
             .select()
             .single();
         final model = FileModel.fromJson(data);
         await _db.upsertFile(model.toLocal());
         return model;
-      } catch (_) {}
+      } catch (e) {
+        debugPrint('[AppRepository] createFileRecord online failed: $e');
+      }
     }
-    // Offline: store locally with generated UUID, queue upload+insert
-    final id = file['id'] as String? ?? _uuid.v4();
-    final now = DateTime.now().toIso8601String();
-    final payload = {'id': id, 'uploaded_at': now, ...file};
+    // Offline or online-error: store locally, queue upload+insert
     final model = FileModel.fromJson(payload);
     await _db.upsertFile(model.toLocal());
-    // Use upload_file action so SyncService uploads binary + inserts record
     await _sync.enqueue(
       recordUuid: id,
       tableName: 'files',
@@ -754,6 +774,75 @@ class AppRepository {
     }
   }
 
+  // ─── Daily Visit Schedule ──────────────────────────────────────────────
+
+  /// Builds a composite view of a day's appointments enriched with treatment
+  /// and financial data for the dashboard schedule table.
+  /// Builds daily visit schedule. Batch-loads related data to avoid N+1 queries.
+  Future<List<DailyVisitModel>> getDailyVisits(DateTime date) async {
+    final appointments = await getAppointments(date: date);
+    if (appointments.isEmpty) return [];
+
+    // Collect unique patient IDs from today's appointments
+    final patientIds = appointments.map((a) => a.patientId).toSet();
+
+    // Batch-load all treatments for these patients (single query per patient)
+    final treatmentsByPatient = <String, List<TreatmentModel>>{};
+    for (final pid in patientIds) {
+      treatmentsByPatient[pid] = await getTreatments(patientId: pid);
+    }
+
+    // Batch-load all future appointments for these patients
+    final futureAptsByPatient = <String, List<AppointmentModel>>{};
+    for (final pid in patientIds) {
+      futureAptsByPatient[pid] = await getAppointments(patientId: pid);
+    }
+
+    final dateOnly = DateTime(date.year, date.month, date.day);
+    final visits = <DailyVisitModel>[];
+
+    for (final apt in appointments) {
+      final treatments = treatmentsByPatient[apt.patientId] ?? [];
+
+      // Resolve treatment: linked > in-progress > latest
+      TreatmentModel? treatment;
+      if (apt.treatmentId != null) {
+        treatment = treatments.where((t) => t.id == apt.treatmentId).firstOrNull;
+      }
+      treatment ??= treatments
+          .where((t) => t.status == 'in_progress')
+          .firstOrNull;
+      treatment ??= treatments.firstOrNull;
+
+      // Find next scheduled appointment after today
+      final futureApts = futureAptsByPatient[apt.patientId] ?? [];
+      DateTime? nextApt;
+      for (final a in futureApts) {
+        final aDate = DateTime(
+            a.appointmentDate.year, a.appointmentDate.month, a.appointmentDate.day);
+        if (aDate.isAfter(dateOnly) && a.status == 'scheduled') {
+          nextApt = a.appointmentDate;
+          break;
+        }
+      }
+
+      visits.add(DailyVisitModel(
+        appointmentId: apt.id,
+        patientId: apt.patientId,
+        patientName: apt.patientName ?? 'Unknown',
+        treatmentId: treatment?.id,
+        procedureType: treatment?.procedureType,
+        totalCost: treatment?.totalCost ?? 0,
+        amountPaid: treatment?.amountPaid ?? 0,
+        nextAppointment: nextApt,
+        appointmentStatus: apt.status,
+        notes: apt.notes,
+      ));
+    }
+
+    return visits;
+  }
+
   // ─── Reports ──────────────────────────────────────────────────────────
 
   Future<Map<String, dynamic>> getFinancialSummary() async {
@@ -766,7 +855,9 @@ class AppRepository {
           params: {'p_dentist_id': userId},
         );
         return result as Map<String, dynamic>;
-      } catch (_) {}
+      } catch (e) {
+        debugPrint('[AppRepository] getFinancialSummary RPC failed: $e');
+      }
     }
     return _db.computeFinancialSummary(userId);
   }
@@ -781,14 +872,20 @@ class AppRepository {
           params: {'p_dentist_id': userId, 'p_year': year, 'p_month': month},
         );
         return result as Map<String, dynamic>;
-      } catch (_) {}
+      } catch (e) {
+        debugPrint('[AppRepository] getMonthlyReport RPC failed: $e');
+      }
     }
     return _db.computeMonthlyReport(userId, year, month);
   }
 
   // ─── Helpers ──────────────────────────────────────────────────────────
 
+  /// Fire-and-forget background cache refresh. Logs errors instead of
+  /// swallowing them so network/auth issues are visible during development.
   void _bgSync(Future<void> Function() fn) {
-    fn().catchError((_) {});
+    fn().catchError((e) {
+      debugPrint('[AppRepository] Background sync error: $e');
+    });
   }
 }

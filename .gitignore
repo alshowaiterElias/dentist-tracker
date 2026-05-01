@@ -11,10 +11,12 @@ build/
 *.aab
 *.ipa
 
-# Environment files
+# Environment files — NEVER commit secrets
 .env
 .env.local
 .env.*.local
+*.env
+admin/.env*
 
 # IDE
 .idea/

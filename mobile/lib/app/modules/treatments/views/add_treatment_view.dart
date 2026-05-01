@@ -5,7 +5,7 @@ import '../../../core/theme/app_colors.dart';
 import '../../../core/theme/app_text_styles.dart';
 import '../../../core/widgets/app_button.dart';
 import '../../../core/widgets/app_text_field.dart';
-import '../../../core/widgets/app_card.dart';
+import '../../../core/widgets/palmer_tooth_chart.dart';
 import '../../../core/utils/validators.dart';
 import '../../../core/utils/formatters.dart';
 import '../../../data/providers/supabase_provider.dart';
@@ -31,7 +31,7 @@ class _AddTreatmentViewState extends State<AddTreatmentView> {
   final _totalCostCtrl = TextEditingController();
   final _techCostCtrl = TextEditingController(text: '0');
 
-  final _selectedTeeth = <int>{};
+  final _selectedTeeth = <String>{};
   final _isSubmitting = false.obs;
   DateTime _treatmentDate = DateTime.now();
 
@@ -95,15 +95,22 @@ class _AddTreatmentViewState extends State<AddTreatmentView> {
                 ),
               ),
               const SizedBox(height: 8),
-              _buildToothGrid(isDark),
+              PalmerToothChart(
+                selectedTeeth: _selectedTeeth,
+                onChanged: (v) => setState(() {
+                  _selectedTeeth.clear();
+                  _selectedTeeth.addAll(v);
+                }),
+                isDark: isDark,
+              ),
               if (_selectedTeeth.isNotEmpty) ...[
                 const SizedBox(height: 8),
                 Wrap(
                   spacing: 6,
-                  children: _selectedTeeth.map((n) => Chip(
-                    label: Text('#$n'),
+                  children: _selectedTeeth.map((t) => Chip(
+                    label: Text(t),
                     deleteIcon: const Icon(Icons.close, size: 16),
-                    onDeleted: () => setState(() => _selectedTeeth.remove(n)),
+                    onDeleted: () => setState(() => _selectedTeeth.remove(t)),
                   )).toList(),
                 ),
               ],
@@ -193,95 +200,6 @@ class _AddTreatmentViewState extends State<AddTreatmentView> {
     );
   }
 
-  /// Scrollable tooth grid to prevent overflow
-  Widget _buildToothGrid(bool isDark) {
-    return AppCard(
-      padding: const EdgeInsets.all(12),
-      child: Column(
-        children: [
-          // Upper jaw label
-          Text('Upper', style: AppTextStyles.caption.copyWith(
-            color: isDark ? AppColors.darkTextTertiary : AppColors.lightTextTertiary,
-          )),
-          const SizedBox(height: 4),
-          // Upper teeth: 18-11, 21-28 - scrollable
-          SingleChildScrollView(
-            scrollDirection: Axis.horizontal,
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                ...List.generate(8, (i) => _toothButton(18 - i, isDark)),
-                Container(width: 2, height: 30, color: isDark ? AppColors.darkBorder : AppColors.lightBorder),
-                ...List.generate(8, (i) => _toothButton(21 + i, isDark)),
-              ],
-            ),
-          ),
-          const SizedBox(height: 4),
-          Divider(color: isDark ? AppColors.darkBorder : AppColors.lightBorder),
-          const SizedBox(height: 4),
-          // Lower teeth: 48-41, 31-38 - scrollable
-          SingleChildScrollView(
-            scrollDirection: Axis.horizontal,
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                ...List.generate(8, (i) => _toothButton(48 - i, isDark)),
-                Container(width: 2, height: 30, color: isDark ? AppColors.darkBorder : AppColors.lightBorder),
-                ...List.generate(8, (i) => _toothButton(31 + i, isDark)),
-              ],
-            ),
-          ),
-          const SizedBox(height: 4),
-          Text('Lower', style: AppTextStyles.caption.copyWith(
-            color: isDark ? AppColors.darkTextTertiary : AppColors.lightTextTertiary,
-          )),
-        ],
-      ),
-    );
-  }
-
-  Widget _toothButton(int number, bool isDark) {
-    final isSelected = _selectedTeeth.contains(number);
-    return GestureDetector(
-      onTap: () {
-        setState(() {
-          if (isSelected) {
-            _selectedTeeth.remove(number);
-          } else {
-            _selectedTeeth.add(number);
-          }
-        });
-      },
-      child: Container(
-        width: 28,
-        height: 30,
-        margin: const EdgeInsets.symmetric(horizontal: 1),
-        decoration: BoxDecoration(
-          color: isSelected
-              ? (isDark ? AppColors.primaryLight : AppColors.primary)
-              : Colors.transparent,
-          borderRadius: BorderRadius.circular(4),
-          border: Border.all(
-            color: isSelected
-                ? Colors.transparent
-                : (isDark ? AppColors.darkBorder : AppColors.lightBorder),
-          ),
-        ),
-        child: Center(
-          child: Text(
-            '$number',
-            style: TextStyle(
-              fontSize: 9,
-              fontWeight: isSelected ? FontWeight.w700 : FontWeight.w500,
-              color: isSelected
-                  ? Colors.white
-                  : (isDark ? AppColors.darkTextSecondary : AppColors.lightTextSecondary),
-            ),
-          ),
-        ),
-      ),
-    );
-  }
 
   Future<void> _submit() async {
     if (!(_formKey.currentState?.validate() ?? false)) return;

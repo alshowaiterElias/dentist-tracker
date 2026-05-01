@@ -22,4 +22,7 @@ abstract class AppRoutes {
   static const String about = '/settings/about';
   static const String privacyPolicy = '/settings/privacy';
   static const String fileViewer = '/files/viewer';
+  static const String newPatientVisit = '/dashboard/new-patient-visit';
+  static const String returningPatientVisit = '/dashboard/returning-patient-visit';
+  static const String deletionPending = '/auth/deletion-pending';
 }

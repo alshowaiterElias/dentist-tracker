@@ -1,0 +1,11 @@
+# ─── Release Signing Configuration ─────────────────────────────
+# Fill in your values after generating a keystore with:
+#   keytool -genkey -v -keystore dentist-tracker-release.jks -keyalg RSA -keysize 2048 -validity 10000 -alias dentist-tracker
+#
+# Place the .jks file in the android/ directory.
+# NEVER commit this file or the .jks file to version control.
+
+storePassword=CHANGE_ME
+keyPassword=CHANGE_ME
+keyAlias=dentist-tracker
+storeFile=dentist-tracker-release.jks

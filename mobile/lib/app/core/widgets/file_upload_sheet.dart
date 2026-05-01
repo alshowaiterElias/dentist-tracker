@@ -354,7 +354,7 @@ class _FileUploadSheetState extends State<FileUploadSheet> {
         Get.back();
         Get.snackbar(
           'success'.tr,
-          'File saved — will upload when back online',
+          'file_saved_offline'.tr,
           snackPosition: SnackPosition.BOTTOM,
           duration: const Duration(seconds: 4),
         );

@@ -22,6 +22,9 @@ import '../modules/settings/views/about_view.dart';
 import '../modules/settings/views/privacy_policy_view.dart';
 import '../modules/splash/views/splash_view.dart';
 import '../modules/splash/bindings/splash_binding.dart';
+import '../modules/dashboard/views/new_patient_visit_view.dart';
+import '../modules/dashboard/views/returning_patient_visit_view.dart';
+import '../modules/auth/views/deletion_pending_view.dart';
 
 /// GetX page route definitions.
 class AppPages {
@@ -106,6 +109,21 @@ class AppPages {
       name: AppRoutes.privacyPolicy,
       page: () => const PrivacyPolicyView(),
       transition: Transition.rightToLeft,
+    ),
+    GetPage(
+      name: AppRoutes.newPatientVisit,
+      page: () => const NewPatientVisitView(),
+      transition: Transition.rightToLeft,
+    ),
+    GetPage(
+      name: AppRoutes.returningPatientVisit,
+      page: () => const ReturningPatientVisitView(),
+      transition: Transition.rightToLeft,
+    ),
+    GetPage(
+      name: AppRoutes.deletionPending,
+      page: () => const DeletionPendingView(),
+      transition: Transition.fadeIn,
     ),
   ];
 }

@@ -5,6 +5,7 @@ import 'package:get_storage/get_storage.dart';
 import 'package:intl/date_symbol_data_local.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'app/core/theme/app_theme.dart';
+import 'app/core/config/env_config.dart';
 import 'app/core/constants/app_constants.dart';
 import 'app/routes/app_pages.dart';
 import 'app/routes/app_routes.dart';
@@ -24,10 +25,13 @@ void main() async {
   await initializeDateFormatting('en');
   await initializeDateFormatting('ar');
 
-  // Initialize Supabase
+  // Validate required environment variables before proceeding
+  EnvConfig.validate();
+
+  // Initialize Supabase with compile-time environment config
   await Supabase.initialize(
-    url: 'https://rnvyrazifxiskhuaowhw.supabase.co',
-    anonKey: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InJudnlyYXppZnhpc2todWFvd2h3Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzY2ODE0NTMsImV4cCI6MjA5MjI1NzQ1M30.-mN8T2Kn6Pjn5AfeyZorhkZgalKUW5Fmt2UdQ4qHkBU',
+    url: EnvConfig.supabaseUrl,
+    anonKey: EnvConfig.supabaseAnonKey,
   );
 
   // ─── Offline-first services ──────────────────────────────────────────

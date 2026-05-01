@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:get_storage/get_storage.dart';
+import 'package:package_info_plus/package_info_plus.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../core/theme/app_text_styles.dart';
 import '../../../core/widgets/app_card.dart';
@@ -10,6 +12,8 @@ import '../../../data/models/profile_model.dart';
 import '../../../routes/app_routes.dart';
 import '../../auth/controllers/auth_controller.dart';
 import '../../auth/views/email_verification_view.dart';
+import '../../../services/sync_service.dart';
+import '../../../services/connectivity_service.dart';
 
 /// Settings screen: profile, revenue %, language, theme, logout.
 class SettingsView extends StatefulWidget {
@@ -24,17 +28,26 @@ class _SettingsViewState extends State<SettingsView> {
   final _storage = GetStorage();
   ProfileModel? _profile;
   bool _isLoading = true;
+  String _appVersion = '';
 
   @override
   void initState() {
     super.initState();
     _loadProfile();
+    _loadVersion();
   }
 
   Future<void> _loadProfile() async {
     setState(() => _isLoading = true);
     _profile = await _repo.getProfile();
     setState(() => _isLoading = false);
+  }
+
+  Future<void> _loadVersion() async {
+    final info = await PackageInfo.fromPlatform();
+    if (mounted) {
+      setState(() => _appVersion = '${info.version}+${info.buildNumber}');
+    }
   }
 
   @override
@@ -87,6 +100,114 @@ class _SettingsViewState extends State<SettingsView> {
                     ],
                   ),
                 ),
+                const SizedBox(height: 24),
+
+                // ─── Data & Sync ─────────────────────────────
+                _buildSectionTitle('data_sync'.tr, isDark),
+                const SizedBox(height: 12),
+                Obx(() {
+                  final sync = SyncService.to;
+                  final online = ConnectivityService.to.isOnline.value;
+                  final pending = sync.pendingCount.value;
+                  final syncing = sync.isSyncing.value;
+
+                  return AppCard(
+                    onTap: (!online || syncing)
+                        ? null
+                        : () async {
+                            await sync.processQueue();
+                            final remaining = sync.pendingCount.value;
+                            if (remaining > 0) {
+                              Get.snackbar(
+                                'warning'.tr,
+                                '$remaining ${'pending_changes'.tr} — ${'sync_failed_hint'.tr}',
+                                snackPosition: SnackPosition.BOTTOM,
+                                duration: const Duration(seconds: 5),
+                              );
+                            } else {
+                              Get.snackbar(
+                                'success'.tr,
+                                'sync_complete'.tr,
+                                snackPosition: SnackPosition.BOTTOM,
+                              );
+                            }
+                          },
+                    padding: const EdgeInsets.all(16),
+                    child: Row(
+                      children: [
+                        Icon(
+                          syncing
+                              ? Icons.sync_rounded
+                              : Icons.cloud_sync_outlined,
+                          color: online
+                              ? (isDark
+                                  ? AppColors.primaryLight
+                                  : AppColors.primary)
+                              : (isDark
+                                  ? AppColors.darkTextTertiary
+                                  : AppColors.lightTextTertiary),
+                          size: 20,
+                        ),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                'sync_now'.tr,
+                                style: AppTextStyles.labelLarge.copyWith(
+                                  color: isDark
+                                      ? AppColors.darkText
+                                      : AppColors.lightText,
+                                ),
+                              ),
+                              const SizedBox(height: 2),
+                              Text(
+                                syncing
+                                    ? 'syncing'.tr
+                                    : !online
+                                        ? 'offline'.tr
+                                        : pending > 0
+                                            ? '$pending ${'pending_changes'.tr}'
+                                            : 'all_synced'.tr,
+                                style: AppTextStyles.caption.copyWith(
+                                  color: isDark
+                                      ? AppColors.darkTextTertiary
+                                      : AppColors.lightTextTertiary,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                        if (syncing)
+                          const SizedBox(
+                            width: 18,
+                            height: 18,
+                            child: CircularProgressIndicator(
+                              strokeWidth: 2,
+                              color: AppColors.primary,
+                            ),
+                          )
+                        else if (pending > 0 && online)
+                          Container(
+                            padding: const EdgeInsets.symmetric(
+                                horizontal: 8, vertical: 2),
+                            decoration: BoxDecoration(
+                              color: AppColors.warning
+                                  .withValues(alpha: 0.15),
+                              borderRadius: BorderRadius.circular(10),
+                            ),
+                            child: Text(
+                              '$pending',
+                              style: AppTextStyles.labelSmall.copyWith(
+                                color: AppColors.warning,
+                              ),
+                            ),
+                          ),
+                      ],
+                    ),
+                  );
+                }),
                 const SizedBox(height: 24),
 
                 // ─── Appearance ──────────────────────────────
@@ -181,12 +302,36 @@ class _SettingsViewState extends State<SettingsView> {
                     ],
                   ),
                 ),
+                const SizedBox(height: 12),
+
+                // ─── Delete Account ──────────────────────────
+                AppCard(
+                  onTap: _requestDeleteAccount,
+                  padding: const EdgeInsets.all(16),
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Icon(
+                        Icons.delete_forever_rounded,
+                        color: Colors.red.shade700,
+                        size: 20,
+                      ),
+                      const SizedBox(width: 8),
+                      Text(
+                        'delete_account'.tr,
+                        style: AppTextStyles.labelLarge.copyWith(
+                          color: Colors.red.shade700,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
                 const SizedBox(height: 32),
 
                 // ─── Version ─────────────────────────────────
                 Center(
                   child: Text(
-                    '${'version'.tr} 1.0.0',
+                    '${'version'.tr} ${_appVersion.isNotEmpty ? _appVersion : '...'}',
                     style: AppTextStyles.caption.copyWith(
                       color: isDark
                           ? AppColors.darkTextTertiary
@@ -465,6 +610,68 @@ class _SettingsViewState extends State<SettingsView> {
     );
   }
 
+  Future<void> _requestDeleteAccount() async {
+    final confirm = await Get.dialog<bool>(
+      AlertDialog(
+        title: Row(
+          children: [
+            Icon(Icons.warning_amber_rounded, color: Colors.red.shade700, size: 24),
+            const SizedBox(width: 8),
+            Text('delete_account'.tr),
+          ],
+        ),
+        content: Text('delete_account_confirm'.tr),
+        actions: [
+          TextButton(
+            onPressed: () => Get.back(result: false),
+            child: Text('cancel'.tr),
+          ),
+          TextButton(
+            onPressed: () => Get.back(result: true),
+            child: Text(
+              'delete'.tr,
+              style: TextStyle(color: Colors.red.shade700),
+            ),
+          ),
+        ],
+      ),
+    );
+    if (confirm != true) return;
+
+    // Second confirmation with typed text
+    final confirmText = await Get.dialog<String>(
+      _DeleteConfirmDialog(),
+    );
+    if (confirmText != 'DELETE') return;
+
+    try {
+      final userId = Supabase.instance.client.auth.currentUser?.id;
+      if (userId == null) return;
+
+      // Insert a deletion request — admin will process it
+      await Supabase.instance.client.from('account_deletion_requests').insert({
+        'user_id': userId,
+        'email': _profile?.email ?? '',
+        'requested_at': DateTime.now().toIso8601String(),
+        'status': 'pending',
+      });
+
+      // Sign out
+      await Supabase.instance.client.auth.signOut();
+
+      Get.offAllNamed(AppRoutes.login);
+      Get.snackbar(
+        'success'.tr,
+        'delete_account_requested'.tr,
+        snackPosition: SnackPosition.BOTTOM,
+        duration: const Duration(seconds: 6),
+      );
+    } catch (e) {
+      Get.snackbar('error'.tr, 'something_went_wrong'.tr,
+          snackPosition: SnackPosition.BOTTOM);
+    }
+  }
+
   Future<void> _logout() async {
     final confirm = await Get.dialog<bool>(
       AlertDialog(
@@ -488,5 +695,50 @@ class _SettingsViewState extends State<SettingsView> {
     if (confirm == true) {
       Get.find<AuthController>().logout();
     }
+  }
+}
+
+/// Dialog that asks the user to type "DELETE" to confirm account deletion.
+class _DeleteConfirmDialog extends StatelessWidget {
+  final _ctrl = TextEditingController();
+
+  _DeleteConfirmDialog();
+
+  @override
+  Widget build(BuildContext context) {
+    return AlertDialog(
+      title: Text('delete_account_type_confirm'.tr),
+      content: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Text(
+            'delete_account_type_desc'.tr,
+            style: AppTextStyles.bodySmall,
+          ),
+          const SizedBox(height: 16),
+          TextField(
+            controller: _ctrl,
+            decoration: const InputDecoration(
+              hintText: 'DELETE',
+              border: OutlineInputBorder(),
+            ),
+            textCapitalization: TextCapitalization.characters,
+          ),
+        ],
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Get.back(result: null),
+          child: Text('cancel'.tr),
+        ),
+        TextButton(
+          onPressed: () => Get.back(result: _ctrl.text.trim()),
+          child: Text(
+            'confirm'.tr,
+            style: TextStyle(color: Colors.red.shade700),
+          ),
+        ),
+      ],
+    );
   }
 }

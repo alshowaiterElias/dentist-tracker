@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
@@ -6,6 +7,8 @@ import '../../../core/theme/app_text_styles.dart';
 import '../../../core/widgets/app_button.dart';
 import '../../../core/widgets/app_text_field.dart';
 import '../../../core/utils/validators.dart';
+import '../../../routes/app_routes.dart';
+import '../controllers/auth_controller.dart';
 
 /// Email verification waiting screen, shown after sign-up before email is confirmed.
 class EmailVerificationView extends StatefulWidget {
@@ -18,7 +21,9 @@ class EmailVerificationView extends StatefulWidget {
 class _EmailVerificationViewState extends State<EmailVerificationView> {
   final _supabase = Supabase.instance.client;
   bool _isResending = false;
+  bool _isVerified = false;
   String _email = '';
+  StreamSubscription<AuthState>? _authSub;
 
   @override
   void initState() {
@@ -30,6 +35,31 @@ class _EmailVerificationViewState extends State<EmailVerificationView> {
     } else {
       _email = _supabase.auth.currentUser?.email ?? '';
     }
+
+    // Listen for auth state change — when user clicks the email link,
+    // the app reopens and fires signedIn. Show verified state then navigate.
+    _authSub = _supabase.auth.onAuthStateChange.listen((data) async {
+      if (data.event == AuthChangeEvent.signedIn && mounted) {
+        setState(() => _isVerified = true);
+
+        // Ensure profile exists
+        if (Get.isRegistered<AuthController>()) {
+          // Let the auth controller handle profile creation
+        }
+
+        // Brief delay so the user sees the "verified" animation
+        await Future.delayed(const Duration(milliseconds: 1500));
+        if (mounted) {
+          Get.offAllNamed(AppRoutes.home);
+        }
+      }
+    });
+  }
+
+  @override
+  void dispose() {
+    _authSub?.cancel();
+    super.dispose();
   }
 
   Future<void> _resendEmail() async {
@@ -65,65 +95,118 @@ class _EmailVerificationViewState extends State<EmailVerificationView> {
         child: SafeArea(
           child: Padding(
             padding: const EdgeInsets.symmetric(horizontal: 28),
-            child: Column(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                // Icon
-                Container(
-                  width: 88,
-                  height: 88,
-                  decoration: BoxDecoration(
-                    color: Colors.white.withValues(alpha: 0.15),
-                    shape: BoxShape.circle,
-                  ),
-                  child: const Icon(
-                    Icons.mark_email_unread_outlined,
-                    color: Colors.white,
-                    size: 44,
-                  ),
-                ),
-                const SizedBox(height: 32),
-
-                Text(
-                  'verify_email'.tr,
-                  style: AppTextStyles.displaySmall.copyWith(color: Colors.white),
-                  textAlign: TextAlign.center,
-                ),
-                const SizedBox(height: 12),
-                Text(
-                  '${'verify_email_desc'.tr}\n$_email',
-                  style: AppTextStyles.bodyMedium
-                      .copyWith(color: Colors.white.withValues(alpha: 0.8)),
-                  textAlign: TextAlign.center,
-                ),
-                const SizedBox(height: 48),
-
-                // Resend button
-                AppButton(
-                  label: 'resend_email'.tr,
-                  isLoading: _isResending,
-                  icon: Icons.send_rounded,
-                  onPressed: _resendEmail,
-                ),
-                const SizedBox(height: 16),
-
-                // Back to login
-                TextButton(
-                  onPressed: () => Get.offAllNamed('/login'),
-                  child: Text(
-                    'back_to_login'.tr,
-                    style: AppTextStyles.labelLarge.copyWith(
-                      color: Colors.white,
-                      decoration: TextDecoration.underline,
-                      decorationColor: Colors.white,
-                    ),
-                  ),
-                ),
-              ],
+            child: AnimatedSwitcher(
+              duration: const Duration(milliseconds: 400),
+              child: _isVerified ? _buildVerifiedState() : _buildWaitingState(),
             ),
           ),
         ),
       ),
+    );
+  }
+
+  Widget _buildVerifiedState() {
+    return Column(
+      key: const ValueKey('verified'),
+      mainAxisAlignment: MainAxisAlignment.center,
+      children: [
+        // Animated checkmark
+        Container(
+          width: 88,
+          height: 88,
+          decoration: BoxDecoration(
+            color: Colors.green.shade400.withValues(alpha: 0.2),
+            shape: BoxShape.circle,
+          ),
+          child: Icon(
+            Icons.check_circle_rounded,
+            color: Colors.green.shade300,
+            size: 56,
+          ),
+        ),
+        const SizedBox(height: 32),
+        Text(
+          'email_verified'.tr,
+          style: AppTextStyles.displaySmall.copyWith(color: Colors.white),
+          textAlign: TextAlign.center,
+        ),
+        const SizedBox(height: 12),
+        Text(
+          'redirecting'.tr,
+          style: AppTextStyles.bodyMedium
+              .copyWith(color: Colors.white.withValues(alpha: 0.8)),
+          textAlign: TextAlign.center,
+        ),
+        const SizedBox(height: 32),
+        const SizedBox(
+          width: 24,
+          height: 24,
+          child: CircularProgressIndicator(
+            strokeWidth: 2.5,
+            color: Colors.white,
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildWaitingState() {
+    return Column(
+      key: const ValueKey('waiting'),
+      mainAxisAlignment: MainAxisAlignment.center,
+      children: [
+        // Icon
+        Container(
+          width: 88,
+          height: 88,
+          decoration: BoxDecoration(
+            color: Colors.white.withValues(alpha: 0.15),
+            shape: BoxShape.circle,
+          ),
+          child: const Icon(
+            Icons.mark_email_unread_outlined,
+            color: Colors.white,
+            size: 44,
+          ),
+        ),
+        const SizedBox(height: 32),
+
+        Text(
+          'verify_email'.tr,
+          style: AppTextStyles.displaySmall.copyWith(color: Colors.white),
+          textAlign: TextAlign.center,
+        ),
+        const SizedBox(height: 12),
+        Text(
+          '${'verify_email_desc'.tr}\n$_email',
+          style: AppTextStyles.bodyMedium
+              .copyWith(color: Colors.white.withValues(alpha: 0.8)),
+          textAlign: TextAlign.center,
+        ),
+        const SizedBox(height: 48),
+
+        // Resend button
+        AppButton(
+          label: 'resend_email'.tr,
+          isLoading: _isResending,
+          icon: Icons.send_rounded,
+          onPressed: _resendEmail,
+        ),
+        const SizedBox(height: 16),
+
+        // Back to login
+        TextButton(
+          onPressed: () => Get.offAllNamed('/login'),
+          child: Text(
+            'back_to_login'.tr,
+            style: AppTextStyles.labelLarge.copyWith(
+              color: Colors.white,
+              decoration: TextDecoration.underline,
+              decorationColor: Colors.white,
+            ),
+          ),
+        ),
+      ],
     );
   }
 }

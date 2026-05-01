@@ -7,9 +7,17 @@ class AppConstants {
   static const String appVersion = '1.0.0';
 
   // ─── API (OTP Backend) ────────────────────────────────────────────
-  // Change this to your machine's local IP for physical device testing,
-  // or the deployed admin URL in production.
-  static const String apiBaseUrl = 'http://192.168.43.148:3000';
+  // Phone OTP requires a deployed backend with Twilio integration.
+  // When the backend is deployed, set this via --dart-define=API_BASE_URL=...
+  // and flip isPhoneAuthEnabled to true.
+  static const String apiBaseUrl = String.fromEnvironment(
+    'API_BASE_URL',
+    defaultValue: '',
+  );
+
+  /// Whether phone-based OTP authentication is available.
+  /// Set to `true` once the OTP backend is deployed to production.
+  static const bool isPhoneAuthEnabled = false;
 
   // ─── Currency ──────────────────────────────────────────────────────
   static const String currency = 'YER';

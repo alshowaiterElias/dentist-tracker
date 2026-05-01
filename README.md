@@ -1,27 +1,34 @@
 # 🦷 Dentist Tracker
 
-A comprehensive dental practice management system built with **Flutter** (mobile) and **Next.js** (admin panel), powered by **Supabase** backend.
+A production-grade dental practice management app built with **Flutter**, powered by **Supabase** (PostgreSQL + Auth + Storage).
+
+> **Version:** 1.0.0+1 · **Platform:** Android · **Language:** English, Arabic (RTL)
 
 ## Overview
 
-Dentist Tracker helps dental professionals manage their entire practice — patients, treatments, appointments, medications, files, and finances — all in one place.
+Dentist Tracker helps dental professionals manage their entire practice — patients, treatments, appointments, medications, files, and finances — all in one app. Built with offline-first architecture, Palmer Notation tooth charting, and secure cloud sync.
 
 ## Architecture
 
 ```
-┌──────────────────┐     ┌──────────────────┐
-│   Mobile App     │     │   Admin Panel    │
-│   (Flutter)      │     │   (Next.js)      │
-└────────┬─────────┘     └────────┬─────────┘
-         │                        │
-         └──────────┬─────────────┘
-                    │
-            ┌───────▼───────┐
-            │   Supabase    │
-            │  (PostgreSQL  │
-            │  + Storage    │
-            │  + Auth)      │
-            └───────────────┘
+┌──────────────────────┐
+│     Mobile App       │
+│     (Flutter)        │
+└──────────┬───────────┘
+           │
+   ┌───────▼───────────┐
+   │     Supabase      │
+   │  ┌─────────────┐  │
+   │  │ PostgreSQL  │  │
+   │  │ + Auth      │  │
+   │  │ + Storage   │  │
+   │  │ + RLS       │  │
+   │  └─────────────┘  │
+   │                    │
+   │  ┌─────────────┐  │
+   │  │ Resend SMTP │  │
+   │  └─────────────┘  │
+   └────────────────────┘
 ```
 
 ## Tech Stack
@@ -29,29 +36,41 @@ Dentist Tracker helps dental professionals manage their entire practice — pati
 | Component | Technology |
 |-----------|-----------|
 | **Mobile App** | Flutter 3.9+, Dart, GetX (state management & routing) |
-| **Admin Panel** | Next.js 15 (App Router), React, Tailwind CSS v4 |
-| **Backend** | Supabase (PostgreSQL, Auth, Storage, RPC) |
-| **Auth** | Email/Password + Phone OTP (via Twilio) |
+| **Backend** | Supabase (PostgreSQL, Auth, Storage, RPC, RLS) |
+| **Auth** | Email/Password with email confirmation (Phone OTP — coming soon) |
+| **Email** | Resend SMTP via custom domain (`hiretrack.ink`) |
 | **Storage** | Supabase Storage (patient files, X-rays, documents) |
+| **Tooth Notation** | Palmer Notation (UR/UL/LR/LL quadrants, 1-8) |
+| **Offline** | SQLite via Drift, background sync queue |
+| **Versioning** | Remote version check via `app_config` table |
 
 ## Features
 
-### Mobile App (Flutter)
-- **Patient Management** — Full CRUD with medical records, conditions, and notes
-- **Treatment Tracking** — Procedure types, tooth selection (dental chart), cost breakdown
-- **Appointment Calendar** — Interactive calendar with day view, scheduling, and status management
-- **Medications** — Prescriptions with dosage, frequency, and duration
+### Core Modules
+- **Patient Management** — Full CRUD with medical records, conditions, allergies, and notes
+- **Treatment Tracking** — Palmer Notation tooth chart, procedure types, cost breakdown (total + technician)
+- **Appointment Calendar** — Interactive calendar with day view, scheduling, and status management (scheduled/completed/cancelled/no-show)
+- **Medications** — Prescriptions with dosage, frequency, start/end dates, and active status
 - **File Uploads** — Camera, gallery, or document picker for X-rays, reports, and scans
-- **Financial Dashboard** — Total income, paid/unpaid balances, dentist earnings with revenue percentage
+- **Financial Dashboard** — Total income, paid/unpaid balances, dentist earnings with configurable revenue percentage
 - **Monthly Reports** — Revenue, technician costs, appointment stats, no-show rates
-- **Settings** — Profile, revenue percentage slider, theme (light/dark/system), language (EN/AR)
-- **About & Legal** — About app, Privacy Policy, Terms of Service
-- **Bilingual** — Full English and Arabic translations
 
-### Admin Panel (Next.js)
-- **User Management** — View and manage registered dentists
-- **Phone OTP Auth** — Twilio-powered OTP verification
-- **Dashboard** — System-wide statistics
+### Patient Workflows
+- **New Patient Visit** — Step-by-step: patient info → treatment + tooth chart → optional follow-up
+- **Returning Patient Visit** — Search existing patient → add treatment → schedule follow-up
+
+### Security & Account
+- **Email Verification** — Branded confirmation emails via Resend SMTP with auto-redirect after verification
+- **Delete Account Flow** — Two-step confirmation (dialog + type "DELETE"), submits deletion request, blocks future login until cancelled or processed
+- **Forced App Updates** — Remote version config blocks outdated app versions from accessing the app
+
+### Settings & Personalization
+- **Profile** — Full name, email, phone, revenue percentage slider
+- **Appearance** — Light / Dark / System theme
+- **Language** — English / Arabic with full RTL support
+- **Sync Status** — View pending operations, manual sync trigger
+- **App Version** — Dynamic display from `package_info_plus`
+- **About & Legal** — Privacy Policy, Terms of Service
 
 ## Project Structure
 
@@ -59,52 +78,71 @@ Dentist Tracker helps dental professionals manage their entire practice — pati
 Dentist Tracker/
 ├── mobile/                    # Flutter mobile app
 │   ├── lib/app/
-│   │   ├── core/              # Theme, widgets, utils, constants
+│   │   ├── core/              # Theme, shared widgets, utils, constants
+│   │   │   └── widgets/       # AppCard, AppButton, PalmerToothChart, etc.
 │   │   ├── data/              # Models, repositories, providers
 │   │   ├── modules/           # Feature modules (GetX pattern)
-│   │   │   ├── auth/
-│   │   │   ├── dashboard/
-│   │   │   ├── patients/
-│   │   │   ├── treatments/
-│   │   │   ├── appointments/
-│   │   │   ├── medications/
-│   │   │   ├── reports/
-│   │   │   ├── settings/
-│   │   │   ├── home/
-│   │   │   └── splash/
-│   │   ├── routes/            # Route definitions
-│   │   └── translations/      # EN/AR localization
+│   │   │   ├── auth/          # Login, Register, Email Verification, Deletion Pending
+│   │   │   ├── dashboard/     # New/Returning patient visit flows
+│   │   │   ├── patients/      # Patient list, detail, add/edit
+│   │   │   ├── treatments/    # Add treatment with Palmer tooth chart
+│   │   │   ├── appointments/  # Add/manage appointments
+│   │   │   ├── medications/   # Prescriptions
+│   │   │   ├── reports/       # Monthly financial reports
+│   │   │   ├── settings/      # Profile, theme, sync, delete account
+│   │   │   ├── home/          # Bottom nav container
+│   │   │   └── splash/        # Splash + version check + auth gate
+│   │   ├── routes/            # Route definitions (29 routes)
+│   │   ├── services/          # SyncService, ConnectivityService, VersionCheckService
+│   │   └── translations/      # EN/AR localization (370+ keys each)
+│   ├── android/               # Android native config, signing, ProGuard
 │   └── pubspec.yaml
-├── admin/                     # Next.js admin panel
-│   ├── app/                   # App Router pages & API routes
-│   └── package.json
 ├── backend/
-│   └── migrations/            # Supabase SQL migrations
-└── docs/                      # Documentation
+│   └── migrations/            # Supabase SQL migrations (001–007)
+└── README.md
 ```
 
 ## Getting Started
 
 ### Prerequisites
 - Flutter SDK 3.9+
-- Node.js 18+
 - Supabase project (free tier works)
-- Twilio account (for phone OTP)
+- Resend account with verified domain (for auth emails)
+- Android device or emulator
 
 ### 1. Database Setup
 
-Run the SQL migrations in order in your Supabase SQL Editor:
+Run all SQL migrations **in order** in your Supabase SQL Editor (Dashboard → SQL Editor → New query):
 
-```bash
+```
 backend/migrations/
-├── 001_initial_schema.sql     # Tables, RLS policies, RPC functions
-├── 002_rls_policies.sql       # Row-level security
-├── 003_storage_bucket.sql     # Storage bucket & policies
-├── 004_functions.sql          # Financial summary & report RPCs
-└── 005_otp_table.sql          # OTP verification table
+├── 001_create_tables.sql              # Core tables: profiles, patients, treatments, etc.
+├── 002_rls_policies.sql               # Row-level security policies
+├── 003_storage_bucket.sql             # Storage bucket & upload policies
+├── 004_functions.sql                  # Financial summary & report RPCs
+├── 005_otp_table.sql                  # OTP verification table (phone auth)
+├── 006_app_config.sql                 # App version config for forced updates
+└── 007_account_deletion_requests.sql  # Account deletion request tracking
 ```
 
-### 2. Mobile App
+### 2. Email Setup (Resend SMTP)
+
+Configure custom SMTP in Supabase for branded auth emails:
+
+1. Go to **Supabase Dashboard → Authentication → SMTP Settings**
+2. Toggle **Enable Custom SMTP** → ON
+3. Set the fields:
+
+| Field | Value |
+|-------|-------|
+| Sender email | `noreply@yourdomain.com` |
+| Sender name | `Dentist Tracker` |
+| SMTP Host | `smtp.resend.com` |
+| Port | `465` |
+| Username | `resend` |
+| Password | Your Resend API key |
+
+### 3. Mobile App
 
 ```bash
 cd mobile
@@ -112,53 +150,94 @@ cd mobile
 # Install dependencies
 flutter pub get
 
-# Configure Supabase credentials in lib/main.dart
-# Set your SUPABASE_URL and SUPABASE_ANON_KEY
+# Run on connected device (pass environment variables securely)
+flutter run \
+  --dart-define=SUPABASE_URL=https://your-project.supabase.co \
+  --dart-define=SUPABASE_ANON_KEY=your-anon-key
 
-# Run on device/emulator
-flutter run
+# Build release AAB for Google Play
+flutter build appbundle --release \
+  --obfuscate \
+  --split-debug-info=build/debug-info \
+  --dart-define=SUPABASE_URL=https://your-project.supabase.co \
+  --dart-define=SUPABASE_ANON_KEY=your-anon-key
 ```
 
-### 3. Admin Panel
+> **Note:** Never hardcode credentials. Always pass them via `--dart-define` at build time.
 
-```bash
-cd admin
+### 4. App Signing
 
-# Install dependencies
-npm install
+The app uses a release keystore for signing. Store your keystore config in `mobile/android/key.properties`:
 
-# Create .env.local with:
-# NEXT_PUBLIC_SUPABASE_URL=your_supabase_url
-# NEXT_PUBLIC_SUPABASE_ANON_KEY=your_anon_key
-# SUPABASE_SERVICE_ROLE_KEY=your_service_role_key
-# TWILIO_ACCOUNT_SID=your_twilio_sid
-# TWILIO_AUTH_TOKEN=your_twilio_token
-# TWILIO_PHONE_NUMBER=your_twilio_number
-
-# Run dev server
-npm run dev
+```properties
+storePassword=your_store_password
+keyPassword=your_key_password
+keyAlias=your_key_alias
+storeFile=/path/to/your-keystore.jks
 ```
 
-### 4. Network Testing (Physical Device)
-
-When testing the mobile app on a physical device connected to the same network as your PC:
-
-1. Find your PC's local IP (e.g., `192.168.x.x`)
-2. Update `AppConstants.apiBaseUrl` in the mobile app to point to `http://YOUR_PC_IP:3000`
-3. Ensure both devices are on the same Wi-Fi network
+> ⚠️ **Never commit `key.properties` or `.jks` files to version control.**
 
 ## Database Schema
 
 | Table | Description |
 |-------|-------------|
 | `profiles` | Dentist profiles (name, email, phone, revenue %) |
-| `patients` | Patient records (name, phone, age, medical status) |
-| `treatments` | Dental procedures (type, teeth, costs, status) |
+| `patients` | Patient records (name, phone, age, gender, medical conditions) |
+| `treatments` | Dental procedures (Palmer notation teeth, costs, status) |
 | `payments` | Payment records linked to treatments |
-| `appointments` | Scheduling with status tracking |
-| `medications` | Prescriptions with dosage details |
+| `appointments` | Scheduling with status tracking (scheduled/completed/cancelled/no-show) |
+| `medications` | Prescriptions with dosage, frequency, and duration |
 | `files` | Uploaded documents/images metadata |
-| `otp_codes` | Temporary OTP storage for phone auth |
+| `app_config` | Remote app version config for forced/optional updates |
+| `account_deletion_requests` | User account deletion requests with status tracking |
+| `otp_codes` | Temporary OTP storage for phone auth (coming soon) |
+
+## Security
+
+### Build-Time Protection
+- **Dart obfuscation** via `--obfuscate` flag renames all Dart symbols
+- **Debug info splitting** via `--split-debug-info` strips debug symbols from release
+- **R8 + ProGuard** minification enabled for Android native code
+- **No hardcoded credentials** — all secrets injected via `--dart-define` at build time
+
+### Server-Side Protection
+- **Row Level Security (RLS)** on every table — users can only access their own data
+- **Supabase Auth** handles all token management, session refresh, and email verification
+- **Anon key is safe** — it only allows access through RLS policies (no admin access)
+- **Service role key** never leaves the server / admin panel
+
+### Account Security
+- **Email verification required** before access
+- **Account deletion** flow with two-step confirmation
+- **Pending deletion blocks login** — users must cancel deletion to regain access
+
+## Build & Release
+
+### Release Build Command
+
+```bash
+flutter build appbundle --release \
+  --obfuscate \
+  --split-debug-info=build/debug-info \
+  --dart-define=SUPABASE_URL=https://your-project.supabase.co \
+  --dart-define=SUPABASE_ANON_KEY=your-anon-key
+```
+
+### Version Management
+
+Update the version in `mobile/pubspec.yaml`:
+```yaml
+version: 1.0.0+1   # version_name+build_number
+```
+
+To enforce app updates, insert/update a row in the `app_config` table:
+```sql
+INSERT INTO app_config (key, value) VALUES
+  ('min_version', '1.0.0'),        -- Force update below this
+  ('latest_version', '1.1.0'),     -- Optional update suggestion
+  ('store_url', 'https://play.google.com/store/apps/details?id=com.dentisttracker.dentist_tracker');
+```
 
 ## License
 

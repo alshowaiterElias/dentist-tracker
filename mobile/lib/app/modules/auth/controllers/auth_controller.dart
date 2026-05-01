@@ -35,6 +35,19 @@ class AuthController extends GetxController {
 
   /// Toggle between email and phone auth
   void toggleAuthMode() {
+    if (!AppConstants.isPhoneAuthEnabled && authMode.value == 'email') {
+      // Phone auth is disabled — show Coming Soon message
+      Get.snackbar(
+        'phone_auth_coming_soon_title'.tr,
+        'phone_auth_coming_soon_desc'.tr,
+        snackPosition: SnackPosition.BOTTOM,
+        icon: const Icon(Icons.info_outline_rounded, color: Colors.white),
+        backgroundColor: Colors.blueGrey.shade700,
+        colorText: Colors.white,
+        duration: const Duration(seconds: 3),
+      );
+      return;
+    }
     authMode.value = authMode.value == 'email' ? 'phone' : 'email';
     isOtpSent.value = false;
   }
@@ -71,6 +84,13 @@ class AuthController extends GetxController {
           );
           return;
         }
+
+        // Check for pending deletion request
+        if (await _hasPendingDeletion()) {
+          Get.offAllNamed(AppRoutes.deletionPending);
+          return;
+        }
+
         await _ensureProfile();
         Get.offAllNamed(AppRoutes.home);
       }
@@ -138,8 +158,18 @@ class AuthController extends GetxController {
 
   // ─── Phone Auth (Twilio OTP) ──────────────────────────────────
 
-  /// Send OTP via our backend (Twilio)
+  /// Send OTP via our backend (Twilio).
+  /// Disabled when [AppConstants.isPhoneAuthEnabled] is false.
   Future<void> sendPhoneOtp() async {
+    if (!AppConstants.isPhoneAuthEnabled) {
+      Get.snackbar(
+        'phone_auth_coming_soon_title'.tr,
+        'phone_auth_coming_soon_desc'.tr,
+        snackPosition: SnackPosition.BOTTOM,
+      );
+      return;
+    }
+
     final phone = phoneController.text.trim();
     if (phone.isEmpty) {
       Get.snackbar(
@@ -186,8 +216,10 @@ class AuthController extends GetxController {
     }
   }
 
-  /// Verify OTP via our backend, receive session tokens
+  /// Verify OTP via our backend, receive session tokens.
+  /// Disabled when [AppConstants.isPhoneAuthEnabled] is false.
   Future<void> verifyPhoneOtp() async {
+    if (!AppConstants.isPhoneAuthEnabled) return;
     if (otpController.text.trim().isEmpty) return;
 
     try {
@@ -230,6 +262,14 @@ class AuthController extends GetxController {
 
   /// Register with phone — same flow, send OTP first
   Future<void> registerWithPhone() async {
+    if (!AppConstants.isPhoneAuthEnabled) {
+      Get.snackbar(
+        'phone_auth_coming_soon_title'.tr,
+        'phone_auth_coming_soon_desc'.tr,
+        snackPosition: SnackPosition.BOTTOM,
+      );
+      return;
+    }
     if (!(registerFormKey.currentState?.validate() ?? false)) return;
     await sendPhoneOtp();
   }
@@ -274,16 +314,70 @@ class AuthController extends GetxController {
     }
   }
 
-  /// Listen to auth state changes (called from main)
+  /// Listen to auth state changes (called from main).
+  /// Skips navigation when the splash screen is handling initial routing
+  /// to prevent double-navigation race conditions.
   void setupAuthListener() {
     _supabase.auth.onAuthStateChange.listen((data) async {
       final event = data.event;
+      final currentRoute = Get.currentRoute;
+
+      // Don't navigate if splash is still the active route —
+      // splash_view._checkAuth() handles the initial navigation.
+      if (currentRoute == AppRoutes.splash) return;
+
       if (event == AuthChangeEvent.signedIn) {
+        // Check for pending deletion before allowing access
+        if (await _hasPendingDeletion()) {
+          Get.offAllNamed(AppRoutes.deletionPending);
+          return;
+        }
         await _ensureProfile();
         Get.offAllNamed(AppRoutes.home);
       } else if (event == AuthChangeEvent.signedOut) {
         Get.offAllNamed(AppRoutes.login);
       }
     });
+  }
+
+  /// Returns true if the current user has a pending deletion request.
+  Future<bool> _hasPendingDeletion() async {
+    try {
+      final userId = _supabase.auth.currentUser?.id;
+      if (userId == null) return false;
+
+      final result = await _supabase
+          .from('account_deletion_requests')
+          .select('id')
+          .eq('user_id', userId)
+          .eq('status', 'pending')
+          .maybeSingle();
+
+      return result != null;
+    } catch (e) {
+      debugPrint('[AuthController] Deletion check failed: $e');
+      return false; // Don't block login if check fails
+    }
+  }
+
+  /// Static helper for splash screen to check deletion status.
+  static Future<bool> checkPendingDeletion() async {
+    try {
+      final client = Supabase.instance.client;
+      final userId = client.auth.currentUser?.id;
+      if (userId == null) return false;
+
+      final result = await client
+          .from('account_deletion_requests')
+          .select('id')
+          .eq('user_id', userId)
+          .eq('status', 'pending')
+          .maybeSingle();
+
+      return result != null;
+    } catch (e) {
+      debugPrint('[AuthController] Static deletion check failed: $e');
+      return false;
+    }
   }
 }
