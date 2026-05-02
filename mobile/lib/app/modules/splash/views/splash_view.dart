@@ -1,6 +1,7 @@
 import 'package:dentist_tracker/app/routes/app_routes.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
+import 'package:get_storage/get_storage.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../core/theme/app_text_styles.dart';
@@ -80,6 +81,14 @@ class _SplashViewState extends State<SplashView>
     if (_navigated || !mounted) return;
     _navigated = true;
 
+    // Check onboarding
+    final storage = GetStorage();
+    final onboardingDone = storage.read<bool>('onboarding_complete') ?? false;
+    if (!onboardingDone) {
+      Get.offAllNamed(AppRoutes.onboarding);
+      return;
+    }
+
     final session = Supabase.instance.client.auth.currentSession;
     if (session != null) {
       // Check if the user has a pending deletion request
@@ -150,6 +159,15 @@ class _SplashViewState extends State<SplashView>
                         'clinic_subtitle'.tr,
                         style: AppTextStyles.bodyMedium.copyWith(
                           color: Colors.white.withValues(alpha: 0.7),
+                        ),
+                      ),
+                      const SizedBox(height: 32),
+                      const SizedBox(
+                        width: 24,
+                        height: 24,
+                        child: CircularProgressIndicator(
+                          strokeWidth: 2.5,
+                          color: Colors.white70,
                         ),
                       ),
                     ],

@@ -25,4 +25,5 @@ abstract class AppRoutes {
   static const String newPatientVisit = '/dashboard/new-patient-visit';
   static const String returningPatientVisit = '/dashboard/returning-patient-visit';
   static const String deletionPending = '/auth/deletion-pending';
+  static const String onboarding = '/onboarding';
 }

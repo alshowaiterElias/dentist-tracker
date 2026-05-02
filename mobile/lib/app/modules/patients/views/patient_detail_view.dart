@@ -158,7 +158,10 @@ class _PatientDetailViewState extends State<PatientDetailView>
                 IconButton(
                   icon: const Icon(Icons.edit_outlined, color: Colors.white),
                   onPressed: () {
-                    // TODO: Navigate to edit patient
+                    Get.toNamed(
+                      AppRoutes.editPatient,
+                      arguments: patient,
+                    );
                   },
                 ),
               ],

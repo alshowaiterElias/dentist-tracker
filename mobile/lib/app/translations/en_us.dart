@@ -366,4 +366,32 @@ const Map<String, String> enUS = {
   'cancel_deletion': 'Cancel Deletion Request',
   'deletion_cancelled': 'Deletion request cancelled. Your account has been restored.',
   'sign_out': 'Sign Out',
+
+  // ─── Onboarding ────────────────────────────────────────
+  'onboarding_title_1': 'Track Every Treatment',
+  'onboarding_desc_1': 'Record patient treatments, costs, and payments in one place. Keep a complete history for every patient.',
+  'onboarding_title_2': 'Manage Appointments',
+  'onboarding_desc_2': 'Schedule and track appointments with an intuitive calendar. Never miss a follow-up.',
+  'onboarding_title_3': 'Sync Everywhere',
+  'onboarding_desc_3': 'Your data syncs securely across devices. Work offline and sync when you\'re back online.',
+  'get_started': 'Get Started',
+  'skip': 'Skip',
+
+  // ─── Edit Patient ──────────────────────────────────────
+  'edit_patient': 'Edit Patient',
+  'save_changes': 'Save Changes',
+
+  // ─── Support ───────────────────────────────────────────
+  'contact_support': 'Contact Support',
+  'support_header': 'Need Help?',
+  'support_subheader': 'Send us a message and we\'ll get back to you shortly.',
+  'support_subject': 'Subject',
+  'support_subject_hint': 'e.g., Bug report, Feature request',
+  'support_message': 'Message',
+  'support_message_hint': 'Describe your issue or feedback in detail...',
+  'support_note': 'We typically respond within 24–48 hours.',
+  'send_message': 'Send Message',
+  'support_sent_title': 'Message Sent!',
+  'support_sent_desc': 'Thank you for reaching out. We\'ve received your message and will get back to you as soon as possible.',
+  'back_to_home': 'Back to Home',
 };

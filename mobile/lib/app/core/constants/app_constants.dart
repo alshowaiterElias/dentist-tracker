@@ -32,6 +32,7 @@ class AppConstants {
   static const String storageThemeKey = 'theme_mode';
   static const String storageLocaleKey = 'locale';
   static const String storageFirstLaunchKey = 'first_launch';
+  static const String storageOnboardingKey = 'onboarding_complete';
 
   // ─── Supabase Table Names ──────────────────────────────────────────
   static const String tableProfiles = 'profiles';

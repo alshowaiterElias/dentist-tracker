@@ -127,7 +127,7 @@ class AuthController extends GetxController {
         email: emailController.text.trim(),
         password: passwordController.text.trim(),
         data: {'full_name': nameController.text.trim()},
-        emailRedirectTo: 'com.dentisttracker://login-callback',
+        emailRedirectTo: 'com.elias.dentisttracker://login-callback',
       );
 
       if (response.user != null) {

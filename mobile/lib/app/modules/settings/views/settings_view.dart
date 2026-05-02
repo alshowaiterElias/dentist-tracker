@@ -14,6 +14,7 @@ import '../../auth/controllers/auth_controller.dart';
 import '../../auth/views/email_verification_view.dart';
 import '../../../services/sync_service.dart';
 import '../../../services/connectivity_service.dart';
+import 'support_view.dart';
 
 /// Settings screen: profile, revenue %, language, theme, logout.
 class SettingsView extends StatefulWidget {
@@ -266,6 +267,33 @@ class _SettingsViewState extends State<SettingsView> {
                       Expanded(
                         child: Text(
                           'privacy_and_terms'.tr,
+                          style: AppTextStyles.labelLarge.copyWith(
+                            color: isDark ? AppColors.darkText : AppColors.lightText,
+                          ),
+                        ),
+                      ),
+                      Icon(
+                        Icons.chevron_right_rounded,
+                        color: isDark ? AppColors.darkTextTertiary : AppColors.lightTextTertiary,
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(height: 8),
+                AppCard(
+                  onTap: () => Get.to(() => const SupportView()),
+                  padding: const EdgeInsets.all(16),
+                  child: Row(
+                    children: [
+                      Icon(
+                        Icons.headset_mic_rounded,
+                        color: isDark ? AppColors.primaryLight : AppColors.primary,
+                        size: 20,
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: Text(
+                          'contact_support'.tr,
                           style: AppTextStyles.labelLarge.copyWith(
                             color: isDark ? AppColors.darkText : AppColors.lightText,
                           ),

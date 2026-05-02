@@ -3,7 +3,7 @@ class TreatmentModel {
   final String patientId;
   final String dentistId;
   final String procedureType;
-  final List<int> toothNumbers;
+  final List<String> toothNumbers;
   final String? description;
   final String? notes;
   final double totalCost;
@@ -57,7 +57,9 @@ class TreatmentModel {
       dentistId: json['dentist_id'] as String,
       procedureType: json['procedure_type'] as String? ?? '',
       toothNumbers: json['tooth_numbers'] != null
-          ? List<int>.from(json['tooth_numbers'] as List)
+          ? List<String>.from(
+              (json['tooth_numbers'] as List).map((e) => e.toString()),
+            )
           : [],
       description: json['description'] as String?,
       notes: json['notes'] as String?,
@@ -98,7 +100,7 @@ class TreatmentModel {
     String? patientId,
     String? dentistId,
     String? procedureType,
-    List<int>? toothNumbers,
+    List<String>? toothNumbers,
     String? description,
     String? notes,
     double? totalCost,

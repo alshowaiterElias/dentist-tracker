@@ -25,6 +25,8 @@ import '../modules/splash/bindings/splash_binding.dart';
 import '../modules/dashboard/views/new_patient_visit_view.dart';
 import '../modules/dashboard/views/returning_patient_visit_view.dart';
 import '../modules/auth/views/deletion_pending_view.dart';
+import '../modules/onboarding/views/onboarding_view.dart';
+import '../modules/patients/views/edit_patient_view.dart';
 
 /// GetX page route definitions.
 class AppPages {
@@ -124,6 +126,17 @@ class AppPages {
       name: AppRoutes.deletionPending,
       page: () => const DeletionPendingView(),
       transition: Transition.fadeIn,
+    ),
+    GetPage(
+      name: AppRoutes.onboarding,
+      page: () => const OnboardingView(),
+      transition: Transition.fadeIn,
+    ),
+    GetPage(
+      name: AppRoutes.editPatient,
+      page: () => const EditPatientView(),
+      binding: PatientBinding(),
+      transition: Transition.rightToLeft,
     ),
   ];
 }

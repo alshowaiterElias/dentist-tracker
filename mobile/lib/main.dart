@@ -25,30 +25,73 @@ void main() async {
   await initializeDateFormatting('en');
   await initializeDateFormatting('ar');
 
-  // Validate required environment variables before proceeding
-  EnvConfig.validate();
+  // ─── Validate env vars (graceful — show error UI instead of crashing) ───
+  if (EnvConfig.supabaseUrl.isEmpty || EnvConfig.supabaseAnonKey.isEmpty) {
+    runApp(_buildErrorApp(
+      'Configuration Error',
+      'Missing required environment variables.\n'
+      'The app was not built with the required --dart-define flags.\n\n'
+      'SUPABASE_URL: ${EnvConfig.supabaseUrl.isEmpty ? "❌ MISSING" : "✅"}\n'
+      'SUPABASE_ANON_KEY: ${EnvConfig.supabaseAnonKey.isEmpty ? "❌ MISSING" : "✅"}',
+    ));
+    return;
+  }
 
-  // Initialize Supabase with compile-time environment config
-  await Supabase.initialize(
-    url: EnvConfig.supabaseUrl,
-    anonKey: EnvConfig.supabaseAnonKey,
-  );
+  try {
+    // Initialize Supabase with compile-time environment config
+    await Supabase.initialize(
+      url: EnvConfig.supabaseUrl,
+      anonKey: EnvConfig.supabaseAnonKey,
+    );
 
-  // ─── Offline-first services ──────────────────────────────────────────
-  final localDb = LocalDatabase();
-  await Get.putAsync<ConnectivityService>(
-    () async => ConnectivityService(),
-    permanent: true,
-  );
-  Get.put<SyncService>(
-    SyncService(localDb),
-    tag: 'sync_service',
-    permanent: true,
-  );
-  // Also put LocalDatabase so AppRepository can find it via Get if needed
-  Get.put<LocalDatabase>(localDb, permanent: true);
+    // ─── Offline-first services ──────────────────────────────────────────
+    final localDb = LocalDatabase();
+    await Get.putAsync<ConnectivityService>(
+      () async => ConnectivityService(),
+      permanent: true,
+    );
+    Get.put<SyncService>(
+      SyncService(localDb),
+      tag: 'sync_service',
+      permanent: true,
+    );
+    // Also put LocalDatabase so AppRepository can find it via Get if needed
+    Get.put<LocalDatabase>(localDb, permanent: true);
 
-  runApp(const DentistTrackerApp());
+    runApp(const DentistTrackerApp());
+  } catch (e) {
+    runApp(_buildErrorApp('Startup Error', e.toString()));
+  }
+}
+
+/// Fallback error screen shown when the app fails to initialize.
+/// This prevents the app from freezing on the native splash screen.
+Widget _buildErrorApp(String title, String message) {
+  return MaterialApp(
+    debugShowCheckedModeBanner: false,
+    home: Scaffold(
+      backgroundColor: const Color(0xFF0A1628),
+      body: Center(
+        child: Padding(
+          padding: const EdgeInsets.all(32),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const Icon(Icons.error_outline, color: Colors.redAccent, size: 64),
+              const SizedBox(height: 24),
+              Text(title,
+                  style: const TextStyle(
+                      color: Colors.white, fontSize: 22, fontWeight: FontWeight.bold)),
+              const SizedBox(height: 16),
+              Text(message,
+                  textAlign: TextAlign.center,
+                  style: const TextStyle(color: Colors.white70, fontSize: 14, height: 1.6)),
+            ],
+          ),
+        ),
+      ),
+    ),
+  );
 }
 
 class DentistTrackerApp extends StatelessWidget {

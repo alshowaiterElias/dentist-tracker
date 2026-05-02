@@ -16,7 +16,7 @@ if (keystoreFile.exists()) {
 }
 
 android {
-    namespace = "com.dentisttracker.dentist_tracker"
+    namespace = "com.elias.dentisttracker"
     compileSdk = flutter.compileSdkVersion
     ndkVersion = flutter.ndkVersion
 
@@ -30,7 +30,7 @@ android {
     }
 
     defaultConfig {
-        applicationId = "com.dentisttracker.dentist_tracker"
+        applicationId = "com.elias.dentisttracker"
         minSdk = flutter.minSdkVersion
         targetSdk = flutter.targetSdkVersion
         versionCode = flutter.versionCode

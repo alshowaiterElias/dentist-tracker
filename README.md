@@ -2,7 +2,7 @@
 
 A production-grade dental practice management app built with **Flutter**, powered by **Supabase** (PostgreSQL + Auth + Storage).
 
-> **Version:** 1.0.0+1 · **Platform:** Android · **Language:** English, Arabic (RTL)
+> **Version:** 1.0.0+5 · **Platform:** Android · **Language:** English, Arabic (RTL)
 
 ## Overview
 
@@ -68,9 +68,14 @@ Dentist Tracker helps dental professionals manage their entire practice — pati
 - **Profile** — Full name, email, phone, revenue percentage slider
 - **Appearance** — Light / Dark / System theme
 - **Language** — English / Arabic with full RTL support
+- **Contact Support** — In-app support messaging to admin team
 - **Sync Status** — View pending operations, manual sync trigger
 - **App Version** — Dynamic display from `package_info_plus`
 - **About & Legal** — Privacy Policy, Terms of Service
+
+### Onboarding
+- **First Launch Flow** — 3-slide onboarding introducing key features (treatments, appointments, sync)
+- **Splash Loading Indicator** — Visual feedback during app initialization
 
 ## Project Structure
 
@@ -89,9 +94,10 @@ Dentist Tracker/
 │   │   │   ├── appointments/  # Add/manage appointments
 │   │   │   ├── medications/   # Prescriptions
 │   │   │   ├── reports/       # Monthly financial reports
-│   │   │   ├── settings/      # Profile, theme, sync, delete account
+│   │   │   ├── settings/      # Profile, theme, sync, support, delete account
+│   │   │   ├── onboarding/    # First-launch onboarding flow
 │   │   │   ├── home/          # Bottom nav container
-│   │   │   └── splash/        # Splash + version check + auth gate
+│   │   │   └── splash/        # Splash + version check + onboarding gate + auth gate
 │   │   ├── routes/            # Route definitions (29 routes)
 │   │   ├── services/          # SyncService, ConnectivityService, VersionCheckService
 │   │   └── translations/      # EN/AR localization (370+ keys each)
@@ -122,7 +128,8 @@ backend/migrations/
 ├── 004_functions.sql                  # Financial summary & report RPCs
 ├── 005_otp_table.sql                  # OTP verification table (phone auth)
 ├── 006_app_config.sql                 # App version config for forced updates
-└── 007_account_deletion_requests.sql  # Account deletion request tracking
+├── 007_account_deletion_requests.sql  # Account deletion request tracking
+└── 003_palmer_and_support.sql         # Palmer Notation migration + support_requests table
 ```
 
 ### 2. Email Setup (Resend SMTP)
@@ -191,6 +198,7 @@ storeFile=/path/to/your-keystore.jks
 | `files` | Uploaded documents/images metadata |
 | `app_config` | Remote app version config for forced/optional updates |
 | `account_deletion_requests` | User account deletion requests with status tracking |
+| `support_requests` | In-app support messages from users to admin |
 | `otp_codes` | Temporary OTP storage for phone auth (coming soon) |
 
 ## Security
@@ -228,7 +236,7 @@ flutter build appbundle --release \
 
 Update the version in `mobile/pubspec.yaml`:
 ```yaml
-version: 1.0.0+1   # version_name+build_number
+version: 1.0.0+5   # version_name+build_number
 ```
 
 To enforce app updates, insert/update a row in the `app_config` table:

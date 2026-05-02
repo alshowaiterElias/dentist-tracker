@@ -100,7 +100,7 @@ extension _TreatmentLocalConvert on TreatmentsTableData {
         dentistId: dentistId,
         procedureType: procedureType,
         toothNumbers:
-            (jsonDecode(toothNumbers) as List).map((e) => e as int).toList(),
+            (jsonDecode(toothNumbers) as List).map((e) => e.toString()).toList(),
         description: description,
         notes: treatmentNotes,
         totalCost: totalCost,

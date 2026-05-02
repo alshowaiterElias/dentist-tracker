@@ -69,7 +69,7 @@ class _EmailVerificationViewState extends State<EmailVerificationView> {
       await _supabase.auth.resend(
         type: OtpType.signup,
         email: _email,
-        emailRedirectTo: 'com.dentisttracker://login-callback',
+        emailRedirectTo: 'com.elias.dentisttracker://login-callback',
       );
       Get.snackbar(
         'success'.tr,
